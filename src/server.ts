@@ -37,7 +37,8 @@ async function initializeServer() {
        origin: [
     'https://tappih.com',
     'https://api.tappih.com',
-    'https://coastal-medical.tappih.com'
+    'https://coastal-medical.tappih.com',
+     /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/
   ], // Allow all origins in development
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
