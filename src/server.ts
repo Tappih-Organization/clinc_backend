@@ -14,6 +14,7 @@ import swaggerSpecs from './config/swagger';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 
 // Initialize server function
 async function initializeServer() {
