@@ -33,7 +33,7 @@ async function initializeServer() {
 
     // CORS configuration
     const corsOptions = {
-      origin: process.env.CORS_ORIGIN || '*', // Allow all origins in development
+      origin: ['https://tappih.com'], // Allow all origins in development
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
         'Origin',
