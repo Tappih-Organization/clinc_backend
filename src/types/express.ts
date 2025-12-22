@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     clinic_id?: string;
+    tenant_id?: string; 
     user_clinic?: any;
     permissions?: string[];
     roles?: string[];

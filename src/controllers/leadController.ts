@@ -18,7 +18,8 @@ export class LeadController {
 
       const leadData = {
         ...req.body,
-        clinic_id: req.clinic_id // Add clinic context to lead data
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id, // Add tenant context to lead data
       };
       
       const lead = new Lead(leadData);

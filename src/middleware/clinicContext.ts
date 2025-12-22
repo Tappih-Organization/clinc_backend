@@ -61,6 +61,8 @@ export const clinicContext = async (req: AuthRequest, res: Response, next: NextF
       });
     }
 
+      req.tenant_id = clinic.tenant_id.toString();
+
     // Verify user has access to this clinic
     let userClinic = await UserClinic.findOne({
       user_id: req.user?._id,

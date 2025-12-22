@@ -32,33 +32,82 @@ async function initializeServer() {
     // app.set('trust proxy', 1); // trust first proxy
     // app.set('trust proxy', ['127.0.0.1', '::1']); // trust specific IPs
 
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://tappih.com',
+  'https://api.tappih.com',
+  'https://coastal-medical.tappih.com'
+];
+
+const corsOptions = {
+  origin: function (origin: any, callback: any) {
+    if (!origin) return callback(null, true); // allow non-browser requests (like Postman)
+    if (allowedOrigins.includes(origin) || /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
+    'X-Clinic-Id'
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+
+
+
+
+
+
+
+
+
+
     // CORS configuration
-    const corsOptions = {
-       origin: [
-    'https://tappih.com',
-    'https://api.tappih.com',
-    'https://coastal-medical.tappih.com',
-     /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/
-  ], // Allow all origins in development
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: [
-        'Origin',
-        'X-Requested-With',
-        'Content-Type',
-        'Accept',
-        'Authorization',
-        'Cache-Control',
-        'Pragma',
-        'X-Clinic-Id'
-      ],
-      credentials: true,
-      optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
-    };
+  //   const corsOptions = {
+  //      origin: [
+  //       'http://localhost:3000',
+  //       'http://localhost:5173',
 
-    app.use(cors(corsOptions));
+  //   'https://tappih.com',
+  //   'https://api.tappih.com',
+  //   'https://coastal-medical.tappih.com',
+  //    /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/
+  // ], // Allow all origins in development
+  //     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  //     allowedHeaders: [
+  //       'Origin',
+  //       'X-Requested-With',
+  //       'Content-Type',
+  //       'Accept',
+  //       'Authorization',
+  //       'Cache-Control',
+  //       'Pragma',
+  //       'X-Clinic-Id'
+  //     ],
+  //     credentials: true,
+  //     optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  //   };
 
-    // Handle preflight requests
-    app.options('*', cors(corsOptions));
+  //   app.use(cors(corsOptions));
+
+  //   // Handle preflight requests
+  //   app.options('*', cors(corsOptions));
 
     // Additional CORS debugging middleware (remove in production)
     app.use((req, res, next) => {
