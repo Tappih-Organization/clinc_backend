@@ -101,7 +101,7 @@ export class XrayAnalysisController {
         : defaultPrompt;
 
       // Initialize Gemini AI client
-      const apiKey = process.env.GEMINI_API_KEY || '';
+      const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyCdjh_ns9xuaP3Mem6NBAwiiklQtwQfcow';
       if (!apiKey) {
         throw new Error('GEMINI_API_KEY environment variable is required');
       }
@@ -138,7 +138,7 @@ export class XrayAnalysisController {
           console.log(`Gemini API attempt ${attempt}/${maxRetries}...`);
           
           const analysisPromise = genAI.models.generateContent({
-            model: 'gemini-2.5-pro-preview-05-06',
+            model: 'gemini-2.5-flash',
             contents: [
               {
                 parts: [
@@ -204,6 +204,7 @@ export class XrayAnalysisController {
       const xrayAnalysis = new XrayAnalysis({
         clinic_id: req.clinic_id, // Add clinic context to analysis data
         patient_id,
+        tenant_id: req.tenant_id,
         doctor_id: req.user?._id,
         image_url: `/uploads/xrays/${file.filename}`,
         image_filename: file.filename,

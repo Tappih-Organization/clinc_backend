@@ -78,6 +78,7 @@ export class AITestComparisonController {
       // Create initial comparison record
       const comparison = new AITestComparison({
         clinic_id: req.clinic_id,
+         tenant_id: req.tenant_id,
         patient_id,
         doctor_id: req.user?._id,
         comparison_name: comparison_name || `Test Comparison - ${new Date().toLocaleDateString()}`,
@@ -340,7 +341,7 @@ export class AITestComparisonController {
       }
 
       const result = await genAI.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         contents: [
           {
             role: 'user',
@@ -369,7 +370,7 @@ export class AITestComparisonController {
         console.log('Retrying with text-only analysis...');
         try {
           const result = await genAI.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.5-flash',
             contents: [
               {
                 role: 'user',

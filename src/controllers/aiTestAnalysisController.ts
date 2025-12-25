@@ -290,7 +290,7 @@ IMPORTANT GUIDELINES:
           }
           
           const analysisPromise = genAI.models.generateContent({
-            model: 'gemini-2.5-pro-preview-05-06',
+            model: 'gemini-2.5-flash',
             contents: [
               {
                 parts: contentParts
@@ -316,7 +316,7 @@ IMPORTANT GUIDELINES:
               const textOnlyPrompt = analysisPrompt + `\n\n--- Extracted Text from PDF ---\n${extractedText}\n\nNote: Analysis based on text content only (image processing failed). Please provide a comprehensive analysis based on the text content above.`;
               
               const textOnlyAnalysis = await genAI.models.generateContent({
-                model: 'gemini-2.5-pro-preview-05-06',
+                model: 'gemini-2.5-flash',
                 contents: [
                   {
                     parts: [{ text: textOnlyPrompt }]
@@ -380,6 +380,7 @@ IMPORTANT GUIDELINES:
       const aiTestAnalysis = new AITestAnalysis({
         clinic_id: req.clinic_id,
         patient_id,
+         tenant_id: req.tenant_id,
         doctor_id: req.user?._id,
         file_url: `/uploads/ai-test-reports/${file.filename}`,
         file_name: file.filename,
