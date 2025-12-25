@@ -158,7 +158,7 @@ const ClinicSchema: Schema = new Schema({
       type: String,
       required: [true, 'Currency is required'],
       default: 'USD',
-      enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'INR', 'AED', 'SAR', 'NGN', 'VND', 'DOP']
+      enum: ['USD', 'SAR', 'EGP']
     },
     language: {
       type: String,

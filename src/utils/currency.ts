@@ -97,6 +97,13 @@ export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = {
     symbol: 'RD$',
     position: 'before',
     decimals: 2
+  },
+  EGP: {
+    code: 'EGP',
+    name: 'Egyptian Pound',
+    symbol: 'E£',
+    position: 'before',
+    decimals: 2
   }
 };
 

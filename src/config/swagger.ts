@@ -132,7 +132,7 @@ const options: Options = {
             },
             base_currency: {
               type: 'string',
-              enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'INR', 'AED', 'SAR'],
+              enum: ['USD', 'SAR', 'EGP'],
               example: 'USD'
             },
             address: {

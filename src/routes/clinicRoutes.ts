@@ -84,7 +84,7 @@ const createClinicValidation = [
   
   body('settings.currency')
     .optional()
-    .isIn(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'INR', 'AED', 'SAR', 'NGN', 'VND'])
+    .isIn(['USD', 'SAR', 'EGP'])
     .withMessage('Invalid currency'),
   
   body('settings.language')
@@ -162,7 +162,7 @@ const updateClinicValidation = [
   
   body('settings.currency')
     .optional()
-    .isIn(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'INR', 'AED', 'SAR', 'NGN', 'VND'])
+    .isIn(['USD', 'SAR', 'EGP'])
     .withMessage('Invalid currency'),
   
   body('settings.language')

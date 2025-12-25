@@ -12,7 +12,7 @@ const updateProfileValidation = [
   body('first_name').optional().notEmpty().withMessage('First name cannot be empty').isLength({ max: 100 }).withMessage('First name cannot exceed 100 characters'),
   body('last_name').optional().notEmpty().withMessage('Last name cannot be empty').isLength({ max: 100 }).withMessage('Last name cannot exceed 100 characters'),
   body('phone').optional().notEmpty().withMessage('Phone cannot be empty').isLength({ max: 20 }).withMessage('Phone cannot exceed 20 characters'),
-  body('base_currency').optional().isIn(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'INR', 'AED', 'SAR', 'NGN', 'VND', 'DOP']).withMessage('Invalid currency code'),
+  body('base_currency').optional().isIn(['USD', 'SAR', 'EGP']).withMessage('Invalid currency code'),
   body('address').optional().isLength({ max: 500 }).withMessage('Address cannot exceed 500 characters'),
   body('bio').optional().isLength({ max: 1000 }).withMessage('Bio cannot exceed 1000 characters'),
   body('date_of_birth').optional().isDate().withMessage('Invalid date format'),
@@ -66,11 +66,17 @@ router.delete('/avatar', authenticate, UserController.removeAvatar);
 router.put('/:id/schedule', authenticate, updateScheduleValidation, UserController.updateUserSchedule);
 
 // Currency routes
+// Returns only USD, SAR, and EGP currencies
 router.get('/currencies', (req, res) => {
+  const allCurrencies = CurrencyUtils.getAllCurrencies();
+  const selectedCurrencies = allCurrencies.filter(
+    currency => currency.code === 'USD' || currency.code === 'SAR' || currency.code === 'EGP'
+  );
+  
   res.json({
     success: true,
     data: {
-      currencies: CurrencyUtils.getAllCurrencies()
+      currencies: selectedCurrencies
     }
   });
 });
