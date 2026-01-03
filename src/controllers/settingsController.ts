@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import Settings, { ISettings } from '../models/Settings';
+import Clinic from '../models/Clinic';
 import { AuthRequest } from '../types/express';
 
 /**
@@ -237,10 +238,88 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
  *       500:
  *         description: Server error
  */
+// export const updateSettings = async (req: AuthRequest, res: Response) => {
+//   try {
+//     const clinicId = req.clinic_id;
+    
+//     if (!clinicId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Clinic context is required'
+//       });
+//     }
+
+//     const { clinic, workingHours, financial, notifications, security } = req.body;
+
+//     // Basic validation for clinic information if provided
+//     if (clinic && (!clinic.name || !clinic.email || !clinic.phone || !clinic.address)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Missing required clinic information (name, email, phone, address)'
+//       });
+//     }
+
+//     // Prepare update data - only include provided fields
+//     const updateData: any = {
+//       clinicId,
+//       updatedAt: new Date()
+//     };
+
+//     if (clinic) updateData.clinic = clinic;
+//     if (workingHours) updateData.workingHours = workingHours;
+//     if (financial) updateData.financial = financial;
+//     if (notifications) updateData.notifications = notifications;
+//     if (security) updateData.security = security;
+
+//     // Use findOneAndUpdate with upsert to create if not exists
+//     const updatedSettings = await Settings.findOneAndUpdate(
+//       { clinicId },
+//       updateData,
+//       {
+//         new: true,
+//         upsert: true,
+//         runValidators: true,
+//         setDefaultsOnInsert: true
+//       }
+//     );
+
+//     if (!updatedSettings) {
+//       return res.status(500).json({
+//         success: false,
+//         message: 'Failed to update settings'
+//       });
+//     }
+
+//     console.log(`✅ Settings updated successfully for clinic: ${clinicId}`);
+
+//     return res.json({
+//       success: true,
+//       message: 'Settings updated successfully',
+//       data: updatedSettings.toJSON(),
+//     });
+//   } catch (error) {
+//     console.error('Error updating settings:', error);
+    
+//     // Handle validation errors
+//     if (error instanceof Error && error.name === 'ValidationError') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid data provided',
+//         error: error.message
+//       });
+//     }
+    
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to update settings',
+//       error: error instanceof Error ? error.message : 'Unknown error'
+//     });
+//   }
+// };
 export const updateSettings = async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = req.clinic_id;
-    
+
     if (!clinicId) {
       return res.status(400).json({
         success: false,
@@ -250,56 +329,102 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
     const { clinic, workingHours, financial, notifications, security } = req.body;
 
-    // Basic validation for clinic information if provided
-    if (clinic && (!clinic.name || !clinic.email || !clinic.phone || !clinic.address)) {
-      return res.status(400).json({
+    // Find existing settings
+    const existingSettings = await Settings.findOne({ clinicId });
+    if (!existingSettings) {
+      return res.status(404).json({
         success: false,
-        message: 'Missing required clinic information (name, email, phone, address)'
+        message: 'Settings not found for this clinic'
       });
     }
 
-    // Prepare update data - only include provided fields
-    const updateData: any = {
-      clinicId,
-      updatedAt: new Date()
-    };
+    // Merge clinic data (keep old values if not provided)
+    if (clinic) {
+      existingSettings.clinic = {
+        ...existingSettings.clinic,
+        ...clinic
+      };
+    }
 
-    if (clinic) updateData.clinic = clinic;
-    if (workingHours) updateData.workingHours = workingHours;
-    if (financial) updateData.financial = financial;
-    if (notifications) updateData.notifications = notifications;
-    if (security) updateData.security = security;
+    // Merge working hours
+    if (workingHours) {
+      existingSettings.workingHours = {
+        ...existingSettings.workingHours,
+        ...workingHours
+      };
+    }
 
-    // Use findOneAndUpdate with upsert to create if not exists
-    const updatedSettings = await Settings.findOneAndUpdate(
-      { clinicId },
-      updateData,
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-        setDefaultsOnInsert: true
+    // Merge other sections
+    if (financial) {
+      existingSettings.financial = {
+        ...existingSettings.financial,
+        ...financial
+      };
+    }
+    if (notifications) {
+      existingSettings.notifications = {
+        ...existingSettings.notifications,
+        ...notifications
+      };
+    }
+    if (security) {
+      existingSettings.security = {
+        ...existingSettings.security,
+        ...security
+      };
+    }
+
+    existingSettings.updatedAt = new Date();
+    await existingSettings.save();
+
+    // Update Clinic model partially (keep old values if not provided)
+    const clinicDoc = await Clinic.findById(clinicId);
+    if (clinicDoc && clinic) {
+      clinicDoc.name = clinic.name || clinicDoc.name;
+      clinicDoc.contact = {
+        phone: clinic.phone || clinicDoc.contact.phone,
+        email: clinic.email || clinicDoc.contact.email,
+        website: clinic.website ?? clinicDoc.contact.website
+      };
+
+      if (clinic.address) {
+        clinicDoc.address = {
+          street: clinic.address.street || clinicDoc.address.street,
+          city: clinic.address.city || clinicDoc.address.city,
+          state: clinic.address.state || clinicDoc.address.state,
+          zipCode: clinic.address.zipCode || clinicDoc.address.zipCode,
+          country: clinic.address.country || clinicDoc.address.country
+        };
       }
-    );
-
-    if (!updatedSettings) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update settings'
-      });
+      await clinicDoc.save();
     }
 
-    console.log(`✅ Settings updated successfully for clinic: ${clinicId}`);
+    // Update working hours in Clinic model
+    if (clinicDoc && workingHours) {
+      for (const day in workingHours) {
+        const daySchedule = workingHours[day];
+        if (clinicDoc.settings.working_hours[day]) {
+          clinicDoc.settings.working_hours[day] = {
+            start: daySchedule.start || clinicDoc.settings.working_hours[day].start,
+            end: daySchedule.end || clinicDoc.settings.working_hours[day].end,
+            isWorking: daySchedule.isOpen ?? clinicDoc.settings.working_hours[day].isWorking
+          };
+        }
+      }
+      await clinicDoc.save();
+    }
+
+    console.log(`✅ Settings updated partially for clinic: ${clinicId}`);
 
     return res.json({
       success: true,
       message: 'Settings updated successfully',
-      data: updatedSettings.toJSON(),
+      data: existingSettings.toJSON(),
     });
+
   } catch (error) {
     console.error('Error updating settings:', error);
-    
-    // Handle validation errors
+
     if (error instanceof Error && error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
@@ -307,7 +432,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
         error: error.message
       });
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Failed to update settings',
@@ -315,6 +440,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+
 
 export default {
   getSettings,
