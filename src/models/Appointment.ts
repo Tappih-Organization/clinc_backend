@@ -6,6 +6,7 @@ export interface IAppointment extends Document {
   patient_id: mongoose.Types.ObjectId;
   doctor_id: mongoose.Types.ObjectId;
   nurse_id?: mongoose.Types.ObjectId;
+  invoice_id?: mongoose.Types.ObjectId;
   appointment_date: Date;
   duration: number;
   status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
@@ -38,6 +39,10 @@ const AppointmentSchema: Schema = new Schema({
     ref: 'User',
     required: [true, 'Doctor ID is required']
   },
+  invoice_id: {
+  type: Schema.Types.ObjectId,
+  ref: 'Invoice'
+},
   nurse_id: {
     type: Schema.Types.ObjectId,
     ref: 'User',
