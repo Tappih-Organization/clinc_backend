@@ -84,9 +84,10 @@ async function initializeServer() {
         'http://localhost:5173',
 
     'https://tappih.com',
-    'https://api.tappih.com',
-    'https://coastal-medical.tappih.com',
-     /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/
+   
+    'https://test.tappih.com'
+   
+    
   ], // Allow all origins in development
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
