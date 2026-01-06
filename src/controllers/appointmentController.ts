@@ -6,68 +6,8 @@ import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData } from '../m
 import Invoice from '../models/Invoice';
 import mongoose from 'mongoose';
 export class AppointmentController {
-  // static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
-  //   try {
-  //     const errors = validationResult(req);
-  //     if (!errors.isEmpty()) {
-  //       res.status(400).json({
-  //         success: false,
-  //         message: 'Validation failed',
-  //         errors: errors.array()
-  //       });
-  //       return;
-  //     }
-
-  //     // Add tenant_id to appointment data with validation
-  //     const appointmentData = addTenantToData(req, {
-  //       ...req.body,
-  //       clinic_id: req.clinic_id
-  //     });
-      
-  //     const appointment = new Appointment(appointmentData);
-  //     await appointment.save();
-
-  //     // Populate patient, doctor, and nurse details
-  //     await appointment.populate(['patient_id', 'doctor_id', 'nurse_id']);
-
-  //     res.status(201).json({
-  //       success: true,
-  //       message: 'Appointment created successfully',
-  //       data: { appointment }
-  //     });
-  //   } catch (error: any) {
-  //     console.error('Create appointment error:', error);
-      
-  //     if (error.message === 'Tenant context is required for this operation') {
-  //       res.status(400).json({
-  //         success: false,
-  //         message: 'Tenant information is required'
-  //       });
-  //       return;
-  //     }
-      
-  //     if (error.code === 11000) {
-  //       res.status(409).json({
-  //         success: false,
-  //         message: 'Doctor is already booked at this time'
-  //       });
-  //       return;
-  //     }
-      
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Internal server error'
-  //     });
-  //   }
-  // }
-
-
-
-
-
- static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
+  static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
     try {
-      // ✅ validation
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         res.status(400).json({
@@ -78,91 +18,26 @@ export class AppointmentController {
         return;
       }
 
-      // ✅ prepare appointment data
+      // Add tenant_id to appointment data with validation
       const appointmentData = addTenantToData(req, {
         ...req.body,
         clinic_id: req.clinic_id
       });
-
-      // ✅ create appointment
+      
       const appointment = new Appointment(appointmentData);
       await appointment.save();
 
-      // ❌ لو الحجز اتلغى ما نعملش فاتورة
-      if (appointment.status === 'cancelled') {
-        res.status(201).json({
-          success: true,
-          message: 'Appointment created (no invoice)',
-          data: { appointment }
-        });
-        return;
-      }
+      // Populate patient, doctor, and nurse details
+      await appointment.populate(['patient_id', 'doctor_id', 'nurse_id']);
 
-      // 💰 pricing logic
-      const APPOINTMENT_PRICES: Record<string, number> = {
-        consultation: 300,
-        'follow-up': 150,
-        'check-up': 200,
-        vaccination: 100,
-        procedure: 500,
-        emergency: 600,
-        screening: 250,
-        therapy: 400,
-        other: 0
-      };
-
-      const price = APPOINTMENT_PRICES[appointment.type] ?? 0;
-
-      // 🧾 invoice services
-      const services = [{
-        description: `Appointment - ${appointment.type}`,
-        quantity: 1,
-        unit_price: price,
-        total: price,
-        type: 'service'
-      }];
-
-      // 🧾 create invoice
-      const invoice = new Invoice(addTenantToData(req, {
-        clinic_id: req.clinic_id,
-        patient_id: appointment.patient_id,
-        appointment_id: appointment._id,
-        services,
-        subtotal: price,
-        tax_amount: 0,
-        discount: 0,
-        total_amount: price,
-        total_paid_amount: 0,
-        due_amount: price,
-        status: 'pending',
-        issue_date: new Date(),
-        due_date: new Date(appointment.appointment_date)
-      }));
-
-      await invoice.save();
-
-      // 🔗 link invoice to appointment
-    appointment.invoice_id = invoice._id as mongoose.Types.ObjectId;
-
-      await appointment.save();
-
-      // 🔄 populate
-      await appointment.populate(['patient_id', 'doctor_id']);
-      await invoice.populate('patient_id', 'first_name last_name phone');
-
-      // ✅ response
       res.status(201).json({
         success: true,
-        message: 'Appointment and invoice created successfully',
-        data: {
-          appointment,
-          invoice
-        }
+        message: 'Appointment created successfully',
+        data: { appointment }
       });
-
     } catch (error: any) {
       console.error('Create appointment error:', error);
-
+      
       if (error.message === 'Tenant context is required for this operation') {
         res.status(400).json({
           success: false,
@@ -170,7 +45,7 @@ export class AppointmentController {
         });
         return;
       }
-
+      
       if (error.code === 11000) {
         res.status(409).json({
           success: false,
@@ -178,13 +53,138 @@ export class AppointmentController {
         });
         return;
       }
-
+      
       res.status(500).json({
         success: false,
         message: 'Internal server error'
       });
     }
   }
+
+
+
+
+
+//  static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
+//     try {
+//       // ✅ validation
+//       const errors = validationResult(req);
+//       if (!errors.isEmpty()) {
+//         res.status(400).json({
+//           success: false,
+//           message: 'Validation failed',
+//           errors: errors.array()
+//         });
+//         return;
+//       }
+
+//       // ✅ prepare appointment data
+//       const appointmentData = addTenantToData(req, {
+//         ...req.body,
+//         clinic_id: req.clinic_id
+//       });
+
+//       // ✅ create appointment
+//       const appointment = new Appointment(appointmentData);
+//       await appointment.save();
+
+//       // ❌ لو الحجز اتلغى ما نعملش فاتورة
+//       if (appointment.status === 'cancelled') {
+//         res.status(201).json({
+//           success: true,
+//           message: 'Appointment created (no invoice)',
+//           data: { appointment }
+//         });
+//         return;
+//       }
+
+//       // 💰 pricing logic
+//       const APPOINTMENT_PRICES: Record<string, number> = {
+//         consultation: 300,
+//         'follow-up': 150,
+//         'check-up': 200,
+//         vaccination: 100,
+//         procedure: 500,
+//         emergency: 600,
+//         screening: 250,
+//         therapy: 400,
+//         other: 0
+//       };
+
+//       const price = APPOINTMENT_PRICES[appointment.type] ?? 0;
+
+//       // 🧾 invoice services
+//       const services = [{
+//         description: `Appointment - ${appointment.type}`,
+//         quantity: 1,
+//         unit_price: price,
+//         total: price,
+//         type: 'service'
+//       }];
+
+//       // 🧾 create invoice
+//       const invoice = new Invoice(addTenantToData(req, {
+//         clinic_id: req.clinic_id,
+//         patient_id: appointment.patient_id,
+//         appointment_id: appointment._id,
+//         services,
+//         subtotal: price,
+//         tax_amount: 0,
+//         discount: 0,
+//         total_amount: price,
+//         total_paid_amount: 0,
+//         due_amount: price,
+//         status: 'pending',
+//         issue_date: new Date(),
+//         due_date: new Date(appointment.appointment_date)
+//       }));
+
+//       await invoice.save();
+
+//       // 🔗 link invoice to appointment
+//     appointment.invoice_id = invoice._id as mongoose.Types.ObjectId;
+
+//       await appointment.save();
+
+//       // 🔄 populate
+//       await appointment.populate(['patient_id', 'doctor_id']);
+//       await invoice.populate('patient_id', 'first_name last_name phone');
+
+//       // ✅ response
+//       res.status(201).json({
+//         success: true,
+//         message: 'Appointment and invoice created successfully',
+//         data: {
+//           appointment,
+//           invoice
+//         }
+//       });
+
+//     } catch (error: any) {
+//       console.error('Create appointment error:', error);
+
+//       if (error.message === 'Tenant context is required for this operation') {
+//         res.status(400).json({
+//           success: false,
+//           message: 'Tenant information is required'
+//         });
+//         return;
+//       }
+
+//       if (error.code === 11000) {
+//         res.status(409).json({
+//           success: false,
+//           message: 'Doctor is already booked at this time'
+//         });
+//         return;
+//       }
+
+//       res.status(500).json({
+//         success: false,
+//         message: 'Internal server error'
+//       });
+//     }
+//   }
 
 
 
