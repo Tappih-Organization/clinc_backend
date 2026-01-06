@@ -7,14 +7,18 @@ import { Types } from 'mongoose';
 const stripeKey = process.env.STRIPE_SECRET_KEY || '';
 
 if (!stripeKey) {
-  console.error('STRIPE_SECRET_KEY is not set in environment variables');
-  throw new Error('STRIPE_SECRET_KEY is required for payment functionality');
+  console.warn('⚠️  STRIPE_SECRET_KEY is not set in environment variables');
+  console.warn('⚠️  Payment functionality will be disabled. Please set STRIPE_SECRET_KEY for payment features.');
 }
 
-const stripe = new Stripe(stripeKey, {
-  apiVersion: '2023-10-16',
-  typescript: true,
-});
+// Initialize Stripe only if key is available
+let stripe: Stripe | null = null;
+if (stripeKey) {
+  stripe = new Stripe(stripeKey, {
+    apiVersion: '2023-10-16',
+    typescript: true,
+  });
+}
 
 export interface CreatePaymentLinkParams {
   amount: number;
@@ -41,6 +45,10 @@ export class StripeService {
    * Create or retrieve a Stripe customer
    */
   static async createOrGetCustomer(params: StripeCustomerParams): Promise<Stripe.Customer> {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
+
     try {
       // Check if customer already exists
       const existingCustomers = await stripe.customers.list({
@@ -75,6 +83,10 @@ export class StripeService {
     checkout_session: Stripe.Checkout.Session;
     payment_record: any;
   }> {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
+
     try {
       // Validate required environment variables
       if (!process.env.STRIPE_SECRET_KEY) {
@@ -179,6 +191,10 @@ export class StripeService {
    * Retrieve checkout session details
    */
   static async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
+
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ['payment_intent', 'payment_intent.charges', 'customer']
@@ -276,6 +292,10 @@ export class StripeService {
    * Create a refund
    */
   static async createRefund(paymentId: string, amount?: number, reason?: string): Promise<Stripe.Refund> {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
+
     try {
       const payment = await Payment.findById(paymentId);
       if (!payment) {
@@ -322,6 +342,10 @@ export class StripeService {
    * Verify webhook signature
    */
   static verifyWebhookSignature(body: string, signature: string): Stripe.Event {
+    if (!stripe) {
+      throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
+
     try {
       if (!process.env.STRIPE_WEBHOOK_SECRET) {
         throw new Error('STRIPE_WEBHOOK_SECRET is not configured');

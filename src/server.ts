@@ -82,6 +82,7 @@ async function initializeServer() {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
+      'http://localhost:5177', // Frontend port (alternative)
       'http://localhost:3001', // Frontend port
       'http://localhost:3003', // Frontend port
       'https://tappih.com',
@@ -291,4 +292,4 @@ initializeServer().catch((error) => {
   process.exit(1);
 });
 
-export default app; 
+export default app;
