@@ -9,8 +9,8 @@ export interface IClinic extends Document {
   address: {
     street: string;
     city: string;
-    state: string;
-    zipCode: string;
+    state?: string;
+    zipCode?: string;
     country: string;
   };
   contact: {
@@ -110,15 +110,21 @@ const ClinicSchema: Schema = new Schema({
     },
     state: {
       type: String,
-      required: [true, 'State is required'],
+      required: false,
       trim: true,
       maxlength: [100, 'State cannot exceed 100 characters']
     },
     zipCode: {
       type: String,
-      required: [true, 'Zip code is required'],
+      required: false,
       trim: true,
       maxlength: [20, 'Zip code cannot exceed 20 characters']
+    },
+    neighborhood: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: [100, 'Neighborhood cannot exceed 100 characters']
     },
     country: {
       type: String,
@@ -199,7 +205,9 @@ ClinicSchema.index({ tenant_id: 1, 'contact.email': 1 });
 
 // Virtual properties
 ClinicSchema.virtual('full_address').get(function(this: IClinic) {
-  return `${this.address.street}, ${this.address.city}, ${this.address.state} ${this.address.zipCode}, ${this.address.country}`;
+  const statePart = this.address.state ? `, ${this.address.state}` : '';
+  const zipPart = this.address.zipCode ? ` ${this.address.zipCode}` : '';
+  return `${this.address.street}, ${this.address.city}${statePart}${zipPart}, ${this.address.country}`;
 });
 
 // Static methods

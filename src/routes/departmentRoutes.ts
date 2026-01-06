@@ -13,8 +13,7 @@ router.use(clinicContext);
 // Validation middleware
 const departmentValidation = [
   body('code')
-    .notEmpty()
-    .withMessage('Department code is required')
+    .optional()
     .isLength({ max: 10 })
     .withMessage('Department code cannot exceed 10 characters')
     .matches(/^[A-Z0-9]+$/)
@@ -25,26 +24,23 @@ const departmentValidation = [
     .isLength({ max: 100 })
     .withMessage('Department name cannot exceed 100 characters'),
   body('description')
-    .notEmpty()
-    .withMessage('Department description is required')
+    .optional()
     .isLength({ max: 500 })
     .withMessage('Description cannot exceed 500 characters'),
   body('head')
-    .notEmpty()
-    .withMessage('Department head is required')
-    .isLength({ max: 100 })
-    .withMessage('Department head name cannot exceed 100 characters'),
+    .optional()
+    .isMongoId()
+    .withMessage('Department head must be a valid user ID'),
   body('location')
-    .notEmpty()
-    .withMessage('Department location is required')
+    .optional()
     .isLength({ max: 200 })
     .withMessage('Location cannot exceed 200 characters'),
   body('phone')
-    .notEmpty()
-    .withMessage('Phone number is required')
+    .optional()
     .isLength({ max: 20 })
     .withMessage('Phone number cannot exceed 20 characters'),
   body('email')
+    .optional()
     .isEmail()
     .withMessage('Please provide a valid email'),
   body('staffCount')

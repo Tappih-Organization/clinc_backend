@@ -18,7 +18,7 @@ export class AppointmentController {
         return;
       }
 
-      // Add tenant_id to appointment data with validation
+      // Add tenant_id to 
       const appointmentData = addTenantToData(req, {
         ...req.body,
         clinic_id: req.clinic_id

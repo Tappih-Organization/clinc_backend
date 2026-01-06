@@ -93,7 +93,7 @@ const LabVendorSchema: Schema = new Schema({
   },
   state: {
     type: String,
-    required: [true, 'State is required'],
+    required: false,
     trim: true,
     maxlength: [100, 'State cannot exceed 100 characters']
   },

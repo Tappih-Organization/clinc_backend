@@ -42,17 +42,20 @@ const createClinicValidation = [
     .withMessage('City cannot exceed 100 characters'),
   
   body('address.state')
-    .notEmpty()
-    .withMessage('State is required')
+    .optional()
     .isLength({ max: 100 })
     .withMessage('State cannot exceed 100 characters'),
   
   body('address.zipCode')
-    .notEmpty()
-    .withMessage('Zip code is required')
+    .optional()
     .isLength({ max: 20 })
     .withMessage('Zip code cannot exceed 20 characters'),
-  
+
+  body('address.neighborhood')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Neighborhood cannot exceed 100 characters'),
+
   body('address.country')
     .notEmpty()
     .withMessage('Country is required')
@@ -131,7 +134,12 @@ const updateClinicValidation = [
     .optional()
     .isLength({ max: 20 })
     .withMessage('Zip code cannot exceed 20 characters'),
-  
+
+  body('address.neighborhood')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Neighborhood cannot exceed 100 characters'),
+
   body('address.country')
     .optional()
     .isLength({ max: 100 })
