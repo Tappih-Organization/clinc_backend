@@ -78,17 +78,27 @@ async function initializeServer() {
 
 
 
-    const corsOptions = {
-       origin: [
-        'http://localhost:3000',
-        'http://localhost:5173',
+    // CORS configuration with proper origin handling
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:3001', // Frontend port
+      'http://localhost:3003', // Frontend port
+      'https://tappih.com',
+      'https://test.tappih.com'
+    ];
 
-    'https://tappih.com',
-   
-    'https://test.tappih.com'
-   
-    
-  ], // Allow all origins in development
+    const corsOptions = {
+      origin: function (origin: any, callback: any) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin) || /^https:\/\/([a-zA-Z0-9-]+\.)*tappih\.com$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
         'Origin',
@@ -101,7 +111,7 @@ async function initializeServer() {
         'X-Clinic-Id'
       ],
       credentials: true,
-      optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+      optionsSuccessStatus: 200
     };
 
     app.use(cors(corsOptions));

@@ -110,15 +110,21 @@ const ClinicSchema: Schema = new Schema({
     },
     state: {
       type: String,
-      required: [true, 'State is required'],
+      required: false,
       trim: true,
       maxlength: [100, 'State cannot exceed 100 characters']
     },
     zipCode: {
       type: String,
-      required: [true, 'Zip code is required'],
+      required: false,
       trim: true,
       maxlength: [20, 'Zip code cannot exceed 20 characters']
+    },
+    neighborhood: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: [100, 'Neighborhood cannot exceed 100 characters']
     },
     country: {
       type: String,

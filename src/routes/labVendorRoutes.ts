@@ -51,8 +51,7 @@ const labVendorValidation = [
     .isLength({ max: 100 })
     .withMessage('City cannot exceed 100 characters'),
   body('state')
-    .notEmpty()
-    .withMessage('State is required')
+    .optional()
     .isLength({ max: 100 })
     .withMessage('State cannot exceed 100 characters'),
   body('zipCode')
