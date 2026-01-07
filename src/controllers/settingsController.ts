@@ -118,10 +118,94 @@ import { AuthRequest } from '../types/express';
  *       500:
  *         description: Server error
  */
+// export const getSettings = async (req: AuthRequest, res: Response) => {
+//   try {
+//     const clinicId = req.clinic_id;
+    
+//     if (!clinicId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Clinic context is required'
+//       });
+//     }
+
+//     // Try to find existing settings for this clinic
+//     // let settings = await Settings.findOne({ clinicId });
+
+
+//     console.log('Fetching settings for clinic:', clinicId);
+//     let settings = await Settings.findOne({ clinicId });
+//     let defultsetting=await Clinic.findOne({ clinicId}); 
+//   console.log('Default setting from Clinic model:', defultsetting);
+//   console.log('Fetched settings:', settings);
+    
+//     // If no settings exist, create default settings
+//     if (!settings) {
+//       const defaultSettings = {
+//         clinicId,
+//         clinic: {
+//           name: "Your Clinic Name",
+//           address: "Your Clinic Address",
+//           phone: "+1 (000) 000-0000",
+//           email: "contact@yourclinic.com",
+//           website: "",
+//           description: "",
+//           logo: "",
+//         },
+//         workingHours: {
+//           monday: { isOpen: true, start: "09:00", end: "17:00" },
+//           tuesday: { isOpen: true, start: "09:00", end: "17:00" },
+//           wednesday: { isOpen: true, start: "09:00", end: "17:00" },
+//           thursday: { isOpen: true, start: "09:00", end: "17:00" },
+//           friday: { isOpen: true, start: "09:00", end: "15:00" },
+//           saturday: { isOpen: false, start: "09:00", end: "13:00" },
+//           sunday: { isOpen: false, start: "10:00", end: "14:00" },
+//         },
+//         financial: {
+//           currency: "USD",
+//           taxRate: 10,
+//           invoicePrefix: "INV",
+//           paymentTerms: 30,
+//           defaultDiscount: 0,
+//         },
+//         notifications: {
+//           emailNotifications: true,
+//           smsNotifications: true,
+//           appointmentReminders: true,
+//           paymentReminders: true,
+//           lowStockAlerts: true,
+//           systemAlerts: true,
+//         },
+//         security: {
+//           twoFactorAuth: false,
+//           sessionTimeout: 60,
+//           passwordExpiry: 90,
+//           backupFrequency: "daily",
+//         }
+//       };
+      
+//       settings = new Settings(defaultSettings);
+//       await settings.save();
+//       console.log(`✅ Created default settings for clinic: ${clinicId}`);
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: settings.toJSON(),
+//     });
+//   } catch (error) {
+//     console.error('Error fetching settings:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch settings',
+//       error: error instanceof Error ? error.message : 'Unknown error'
+//     });
+//   }
+// };
 export const getSettings = async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = req.clinic_id;
-    
+
     if (!clinicId) {
       return res.status(400).json({
         success: false,
@@ -129,69 +213,110 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Try to find existing settings for this clinic
+    // 1️⃣ Get clinic
+    const clinic = await Clinic.findById(clinicId);
+    if (!clinic) {
+      return res.status(404).json({
+        success: false,
+        message: 'Clinic not found'
+      });
+    }
+
+    // 2️⃣ Get settings
     let settings = await Settings.findOne({ clinicId });
-    
-    // If no settings exist, create default settings
+
+    // 3️⃣ Create default settings from clinic
     if (!settings) {
-      const defaultSettings = {
+      settings = new Settings({
         clinicId,
+
         clinic: {
-          name: "Your Clinic Name",
-          address: "Your Clinic Address",
-          phone: "+1 (000) 000-0000",
-          email: "contact@yourclinic.com",
-          website: "",
-          description: "",
-          logo: "",
+          name: clinic.name,
+          address: `${clinic.address.street}, ${clinic.address.city}, ${clinic.address.country}`,
+          phone: clinic.contact.phone,
+          email: clinic.contact.email,
+          website: clinic.contact.website || '',
+          description: clinic.description || '',
+          logo: ''
         },
+
         workingHours: {
-          monday: { isOpen: true, start: "09:00", end: "17:00" },
-          tuesday: { isOpen: true, start: "09:00", end: "17:00" },
-          wednesday: { isOpen: true, start: "09:00", end: "17:00" },
-          thursday: { isOpen: true, start: "09:00", end: "17:00" },
-          friday: { isOpen: true, start: "09:00", end: "15:00" },
-          saturday: { isOpen: false, start: "09:00", end: "13:00" },
-          sunday: { isOpen: false, start: "10:00", end: "14:00" },
+          monday: {
+            isOpen: clinic.settings.working_hours.monday.isWorking,
+            start: clinic.settings.working_hours.monday.start,
+            end: clinic.settings.working_hours.monday.end
+          },
+          tuesday: {
+            isOpen: clinic.settings.working_hours.tuesday.isWorking,
+            start: clinic.settings.working_hours.tuesday.start,
+            end: clinic.settings.working_hours.tuesday.end
+          },
+          wednesday: {
+            isOpen: clinic.settings.working_hours.wednesday.isWorking,
+            start: clinic.settings.working_hours.wednesday.start,
+            end: clinic.settings.working_hours.wednesday.end
+          },
+          thursday: {
+            isOpen: clinic.settings.working_hours.thursday.isWorking,
+            start: clinic.settings.working_hours.thursday.start,
+            end: clinic.settings.working_hours.thursday.end
+          },
+          friday: {
+            isOpen: clinic.settings.working_hours.friday.isWorking,
+            start: clinic.settings.working_hours.friday.start,
+            end: clinic.settings.working_hours.friday.end
+          },
+          saturday: {
+            isOpen: clinic.settings.working_hours.saturday.isWorking,
+            start: clinic.settings.working_hours.saturday.start,
+            end: clinic.settings.working_hours.saturday.end
+          },
+          sunday: {
+            isOpen: clinic.settings.working_hours.sunday.isWorking,
+            start: clinic.settings.working_hours.sunday.start,
+            end: clinic.settings.working_hours.sunday.end
+          }
         },
+
         financial: {
-          currency: "USD",
-          taxRate: 10,
-          invoicePrefix: "INV",
+          currency: clinic.settings.currency,
+          taxRate: 0,
+          invoicePrefix: clinic.code,
           paymentTerms: 30,
-          defaultDiscount: 0,
+          defaultDiscount: 0
         },
+
         notifications: {
           emailNotifications: true,
-          smsNotifications: true,
+          smsNotifications: false,
           appointmentReminders: true,
           paymentReminders: true,
           lowStockAlerts: true,
-          systemAlerts: true,
+          systemAlerts: true
         },
+
         security: {
           twoFactorAuth: false,
           sessionTimeout: 60,
           passwordExpiry: 90,
-          backupFrequency: "daily",
+          backupFrequency: 'daily'
         }
-      };
-      
-      settings = new Settings(defaultSettings);
+      });
+
       await settings.save();
-      console.log(`✅ Created default settings for clinic: ${clinicId}`);
+      console.log(`✅ Settings created from clinic ${clinicId}`);
     }
 
     return res.json({
       success: true,
-      data: settings.toJSON(),
+      data: settings.toJSON()
     });
+
   } catch (error) {
     console.error('Error fetching settings:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch settings',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Failed to fetch settings'
     });
   }
 };
