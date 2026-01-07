@@ -7,6 +7,14 @@ import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData, canAccessTe
 export class PatientController {
   static async createPatient(req: AuthRequest, res: Response): Promise<void> {
     try {
+
+
+const isFutureDate = (date: Date) => {
+  return date.getTime() > new Date().getTime();
+};
+
+
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         res.status(400).json({
@@ -16,11 +24,32 @@ export class PatientController {
         });
         return;
       }
+       //check the date is not in future
+      if (req.body.date_of_birth && isFutureDate(new Date(req.body.date_of_birth))) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: [{ msg: 'Date of Birth cannot be in the future', param: 'date_of_birth', location: 'body' }]
+        });
+        return;
+      }
+
+      if (req.body.last_visit && isFutureDate(new Date(req.body.last_visit))) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: [{ msg: 'Last Visit Date cannot be in the future', param: 'last_visit', location: 'body' }]
+        });
+        return;
+      }
+
+
 
       // Add tenant_id to patient data with validation
       const patientData = addTenantToData(req, {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id
       });
       
       const patient = new Patient(patientData);
@@ -41,6 +70,7 @@ export class PatientController {
         });
         return;
       }
+
       
       res.status(500).json({
         success: false,
