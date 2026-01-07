@@ -41,7 +41,19 @@ export async function autoPermissionGuard(req: AuthRequest, res: Response, next:
   try {
     // Skip public endpoints
     const path = req.originalUrl.replace(/\?.*$/, '');
-    if (SKIP_PREFIXES.some((p) => path.startsWith(`/api${p}`) || path.startsWith(p))) {
+    
+    // Check if path should be skipped (more comprehensive check)
+    const shouldSkip = SKIP_PREFIXES.some((p) => {
+      // Check for /api/auth, /api/public, etc.
+      if (path.startsWith(`/api${p}`)) return true;
+      // Check for /auth, /public, etc. (without /api)
+      if (path.startsWith(p)) return true;
+      // Also check for exact matches like /api/auth/login
+      if (path.includes(`${p}/`)) return true;
+      return false;
+    });
+    
+    if (shouldSkip) {
       return next();
     }
 

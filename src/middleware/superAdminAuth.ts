@@ -6,12 +6,29 @@ import { SuperAdminJWTPayload } from '../controllers/auth/SuperAdminAuthControll
 
 export const authenticateSuperAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-
-    if (!token) {
+    // Extract token from Authorization header
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader) {
       res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
+      });
+      return;
+    }
+
+    // Handle both "Bearer <token>" and just "<token>" formats
+    let token = authHeader;
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '').trim();
+    } else {
+      token = authHeader.trim();
+    }
+
+    if (!token || token === '') {
+      res.status(401).json({
+        success: false,
+        message: 'Access denied. Invalid token format.'
       });
       return;
     }
@@ -110,9 +127,23 @@ export const requireSuperAdmin = [authenticateSuperAdmin];
  */
 export const checkSuperAdminStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authHeader = req.header('Authorization');
     
-    if (!token) {
+    if (!authHeader) {
+      req.isSuperAdmin = false;
+      next();
+      return;
+    }
+
+    // Handle both "Bearer <token>" and just "<token>" formats
+    let token = authHeader;
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '').trim();
+    } else {
+      token = authHeader.trim();
+    }
+    
+    if (!token || token === '') {
       req.isSuperAdmin = false;
       next();
       return;

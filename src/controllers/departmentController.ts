@@ -16,9 +16,24 @@ export class DepartmentController {
         return;
       }
 
+      // Auto-generate department code if not provided
+      let departmentCode = req.body.code;
+      if (!departmentCode) {
+        // Get the count of existing departments in this clinic
+        const departmentCount = await Department.countDocuments({
+          tenant_id: req.tenant_id,
+          clinic_id: req.clinic_id
+        });
+        // Generate code starting from 1 (DEPT001, DEPT002, etc.)
+        const nextNumber = departmentCount + 1;
+        departmentCode = `DEPT${nextNumber.toString().padStart(3, '0')}`;
+      } else {
+        departmentCode = departmentCode.toUpperCase();
+      }
+
       // Check if department code already exists in this clinic
       const existingDept = await Department.findOne({ 
-        code: req.body.code.toUpperCase(),
+        code: departmentCode,
         tenant_id: req.tenant_id,
         clinic_id: req.clinic_id
       });
@@ -32,12 +47,16 @@ export class DepartmentController {
 
       const departmentData = {
         ...req.body,
+        code: departmentCode,
         tenant_id: req.tenant_id,
         clinic_id: req.clinic_id
       };
 
       const department = new Department(departmentData);
       await department.save();
+
+      // Populate head field before sending response
+      await department.populate('head', 'first_name last_name email role');
 
       res.status(201).json({
         success: true,
@@ -80,6 +99,7 @@ export class DepartmentController {
       }
 
       const departments = await Department.find(filter)
+        .populate('head', 'first_name last_name email role')
         .skip(skip)
         .limit(limit)
         .sort({ created_at: -1 });
@@ -114,7 +134,7 @@ export class DepartmentController {
         _id: id,
         tenant_id: req.tenant_id,
         clinic_id: req.clinic_id
-      });
+      }).populate('head', 'first_name last_name email role');
 
       if (!department) {
         res.status(404).json({
@@ -172,7 +192,7 @@ export class DepartmentController {
         { _id: id, tenant_id: req.tenant_id, clinic_id: req.clinic_id },
         req.body,
         { new: true, runValidators: true }
-      );
+      ).populate('head', 'first_name last_name email role');
 
       if (!department) {
         res.status(404).json({

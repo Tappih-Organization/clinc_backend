@@ -14,12 +14,29 @@ interface JWTPayload {
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-
-    if (!token) {
+    // Extract token from Authorization header
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader) {
       res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
+      });
+      return;
+    }
+
+    // Handle both "Bearer <token>" and just "<token>" formats
+    let token = authHeader;
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '').trim();
+    } else {
+      token = authHeader.trim();
+    }
+
+    if (!token || token === '') {
+      res.status(401).json({
+        success: false,
+        message: 'Access denied. Invalid token format.'
       });
       return;
     }
@@ -58,6 +75,24 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
 
     next();
   } catch (error) {
+    // Provide more specific error messages
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid token format.'
+      });
+      return;
+    }
+    
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({
+        success: false,
+        message: 'Token has expired.'
+      });
+      return;
+    }
+
+    console.error('Authentication error:', error);
     res.status(401).json({
       success: false,
       message: 'Invalid token.'
