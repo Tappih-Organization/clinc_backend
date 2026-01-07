@@ -125,7 +125,14 @@ const PatientSchema: Schema = new Schema({
   },
   last_visit: {
     type: Date,
-    required: false
+    required: false,
+      validate: {
+    validator: function (value: Date) {
+      return value <= new Date();
+    },
+    message: "Last Visit Date cannot be in the future",
+  },
+
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
