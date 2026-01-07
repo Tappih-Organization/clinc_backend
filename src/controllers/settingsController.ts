@@ -506,6 +506,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     const clinicDoc = await Clinic.findById(clinicId);
     if (clinicDoc && clinic) {
       clinicDoc.name = clinic.name || clinicDoc.name;
+      clinicDoc.description = clinic.description || clinicDoc.description;
       clinicDoc.contact = {
         phone: clinic.phone || clinicDoc.contact.phone,
         email: clinic.email || clinicDoc.contact.email,
