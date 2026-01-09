@@ -45,7 +45,7 @@ const TestReportSchema: Schema = new Schema({
   },
   reportNumber: {
     type: String,
-    required: [true, 'Report number is required'],
+    required: [false, 'Report number is required'],
     trim: true,
     maxlength: [50, 'Report number cannot exceed 50 characters']
   },

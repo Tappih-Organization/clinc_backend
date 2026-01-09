@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { TurnaroundTime } from '../models';
-
+import { AuthRequest } from '../types/express';
 export class TurnaroundTimeController {
-  static async createTurnaroundTime(req: Request, res: Response): Promise<void> {
+  static async createTurnaroundTime(req: AuthRequest, res: Response): Promise<void> {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -14,8 +14,12 @@ export class TurnaroundTimeController {
         });
         return;
       }
-
-      const turnaroundTime = new TurnaroundTime(req.body);
+    const turnaroundTime = new TurnaroundTime({
+      ...req.body,
+     
+      clinic_id: req.clinic_id
+    });
+    
       await turnaroundTime.save();
 
       res.status(201).json({

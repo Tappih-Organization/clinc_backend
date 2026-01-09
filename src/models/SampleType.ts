@@ -48,7 +48,7 @@ const SampleTypeSchema: Schema = new Schema({
   },
   category: {
     type: String,
-    required: [true, 'Category is required'],
+    required: [false, 'Category is required'],
     enum: {
       values: ['blood', 'urine', 'body_fluid', 'tissue', 'swab', 'other'],
       message: 'Invalid sample category'
@@ -56,13 +56,13 @@ const SampleTypeSchema: Schema = new Schema({
   },
   collectionMethod: {
     type: String,
-    required: [true, 'Collection method is required'],
+    required: [false, 'Collection method is required'],
     trim: true,
     maxlength: [200, 'Collection method cannot exceed 200 characters']
   },
   container: {
     type: String,
-    required: [true, 'Container information is required'],
+    required: [false, 'Container information is required'],
     trim: true,
     maxlength: [200, 'Container information cannot exceed 200 characters']
   },
@@ -73,23 +73,24 @@ const SampleTypeSchema: Schema = new Schema({
   },
   storageTemp: {
     type: String,
-    required: [true, 'Storage temperature is required'],
+    required: [false, 'Storage temperature is required'],
     trim: true,
     maxlength: [50, 'Storage temperature cannot exceed 50 characters']
   },
   storageTime: {
     type: String,
-    required: [true, 'Storage time is required'],
+    required: [false, 'Storage time is required'],
     trim: true,
     maxlength: [100, 'Storage time cannot exceed 100 characters']
   },
   volume: {
     type: String,
-    required: [true, 'Volume requirement is required'],
+    required: [false, 'Volume requirement is required'],
     trim: true,
     maxlength: [50, 'Volume requirement cannot exceed 50 characters']
   },
   specialInstructions: {
+    required: false,
     type: String,
     trim: true,
     maxlength: [1000, 'Special instructions cannot exceed 1000 characters']
@@ -101,7 +102,7 @@ const SampleTypeSchema: Schema = new Schema({
   clinic_id: {
     type: Schema.Types.ObjectId,
     ref: 'Clinic',
-    required: [true, 'Clinic ID is required']
+    required: [false, 'Clinic ID is required']
   },
   isActive: {
     type: Boolean,

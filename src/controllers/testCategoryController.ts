@@ -18,7 +18,8 @@ export class TestCategoryController {
 
       const categoryData = {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+         tenant_id: req.tenant_id,
       };
 
       const category = new TestCategory(categoryData);
