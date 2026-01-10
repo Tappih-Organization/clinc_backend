@@ -9,12 +9,12 @@ const router = Router();
 // Validation middleware
 const patientValidation = [
   body('first_name').notEmpty().withMessage('First name is required'),
-  body('last_name').notEmpty().withMessage('Last name is required'),
-  body('date_of_birth').isISO8601().withMessage('Please provide a valid date of birth'),
-  body('gender').isIn(['male', 'female', 'other']).withMessage('Invalid gender'),
+  body('last_name').optional().isString().withMessage('Last name must be a string'),
+  body('date_of_birth').optional().isISO8601().withMessage('Please provide a valid date of birth'),
+  body('gender').isIn(['male', 'female']).withMessage('Invalid gender. Must be male or female'),
   body('phone').notEmpty().withMessage('Phone number is required'),
-  body('email').isEmail().withMessage('Please provide a valid email'),
-  body('address').notEmpty().withMessage('Address is required'),
+  body('email').optional().isEmail().withMessage('Please provide a valid email'),
+  body('address').optional().isString().withMessage('Address must be a string'),
   body('emergency_contact.name').optional().isString().withMessage('Emergency contact name must be a string'),
   body('emergency_contact.relationship').optional().isString().withMessage('Emergency contact relationship must be a string'),
   body('emergency_contact.phone').optional().isString().withMessage('Emergency contact phone must be a string'),

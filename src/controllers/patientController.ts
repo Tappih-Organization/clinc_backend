@@ -46,10 +46,12 @@ const isFutureDate = (date: Date) => {
 
 
       // Add tenant_id to patient data with validation
+      // Ensure gender has default value if not provided
       const patientData = addTenantToData(req, {
         ...req.body,
         clinic_id: req.clinic_id,
-        tenant_id: req.tenant_id
+        tenant_id: req.tenant_id,
+        gender: req.body.gender || 'male' // Default to male if not provided
       });
       
       const patient = new Patient(patientData);

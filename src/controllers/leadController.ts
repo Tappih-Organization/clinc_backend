@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { Lead, Patient } from '../models';
 import { AuthRequest } from '../types/express';
+import { addTenantToData } from '../middleware/auth';
 
 export class LeadController {
   static async createLead(req: AuthRequest, res: Response): Promise<void> {
@@ -296,15 +297,40 @@ export class LeadController {
       }
 
       // Create patient from lead data and request body
-      const patientData = {
-        ...req.body,
-        // Ensure we use lead's contact info if not provided
-        first_name: req.body.first_name || lead.firstName,
-        last_name: req.body.last_name || lead.lastName,
-        email: req.body.email || lead.email,
-        phone: req.body.phone || lead.phone,
-        clinic_id: req.clinic_id // Add clinic context to patient data
+      // Ensure we use lead's contact info if not provided in request body
+      const basePatientData: any = {
+        first_name: req.body.first_name?.trim() || lead.firstName.trim(),
+        ...(req.body.last_name?.trim() && { last_name: req.body.last_name.trim() }),
+        phone: req.body.phone?.trim() || lead.phone.trim(),
+        gender: req.body.gender || 'male', // Default to male if not provided
+        ...(req.body.email?.trim() && { email: req.body.email.trim() }),
+        ...(req.body.date_of_birth && { date_of_birth: new Date(req.body.date_of_birth) }),
+        ...(req.body.address?.trim() && { address: req.body.address.trim() }),
+        clinic_id: req.clinic_id, // Add clinic context to patient data
       };
+
+      // Add emergency_contact if provided
+      if (req.body.emergency_contact) {
+        basePatientData.emergency_contact = {
+          name: req.body.emergency_contact.name?.trim() || "",
+          relationship: req.body.emergency_contact.relationship?.trim() || "",
+          phone: req.body.emergency_contact.phone?.trim() || "",
+          ...(req.body.emergency_contact.email?.trim() && { email: req.body.emergency_contact.email.trim() }),
+        };
+      }
+
+      // Add insurance_info if provided
+      if (req.body.insurance_info) {
+        basePatientData.insurance_info = {
+          provider: req.body.insurance_info.provider?.trim() || "",
+          policy_number: req.body.insurance_info.policy_number?.trim() || "",
+          group_number: req.body.insurance_info.group_number?.trim() || "",
+          ...(req.body.insurance_info.expiry_date && { expiry_date: new Date(req.body.insurance_info.expiry_date) }),
+        };
+      }
+
+      // Add tenant_id using the helper function (same as in patientController)
+      const patientData = addTenantToData(req, basePatientData);
 
       const patient = new Patient(patientData);
       await patient.save();
