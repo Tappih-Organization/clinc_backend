@@ -4,12 +4,12 @@ export interface IPatient extends Document {
   tenant_id: Types.ObjectId;
   clinic_id: Types.ObjectId;
   first_name: string;
-  last_name: string;
-  date_of_birth: Date;
-  gender: 'male' | 'female' | 'other';
+  last_name?: string;
+  date_of_birth?: Date;
+  gender: 'male' | 'female';
   phone: string;
-  email: string;
-  address: string;
+  email?: string;
+  address?: string;
   emergency_contact: {
     name?: string;
     relationship?: string;
@@ -49,15 +49,16 @@ const PatientSchema: Schema = new Schema({
   },
   last_name: {
     type: String,
-    required: [true, 'Last name is required'],
+    required: false,
     trim: true,
     maxlength: [100, 'Last name cannot exceed 100 characters']
   },
   date_of_birth: {
     type: Date,
-    required: [true, 'Date of birth is required'],
+    required: false,
     validate: {
       validator: function(value: Date) {
+        if (!value) return true; // Allow empty date_of_birth
         return value <= new Date();
       },
       message: 'Date of birth cannot be in the future'
@@ -65,8 +66,9 @@ const PatientSchema: Schema = new Schema({
   },
   gender: {
     type: String,
-    enum: ['male', 'female', 'other'],
-    required: [true, 'Gender is required']
+    enum: ['male', 'female'],
+    required: [true, 'Gender is required'],
+    default: 'male'
   },
   phone: {
     type: String,
@@ -76,14 +78,20 @@ const PatientSchema: Schema = new Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: false,
     lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    validate: {
+      validator: function(value: string) {
+        if (!value) return true; // Allow empty email
+        return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(value);
+      },
+      message: 'Please enter a valid email'
+    }
   },
   address: {
     type: String,
-    required: [true, 'Address is required'],
+    required: false,
     trim: true
   },
   emergency_contact: {
@@ -125,7 +133,14 @@ const PatientSchema: Schema = new Schema({
   },
   last_visit: {
     type: Date,
-    required: false
+    required: false,
+      validate: {
+    validator: function (value: Date) {
+      return value <= new Date();
+    },
+    message: "Last Visit Date cannot be in the future",
+  },
+
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

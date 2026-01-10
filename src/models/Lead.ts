@@ -31,7 +31,7 @@ const LeadSchema: Schema = new Schema({
   },
   lastName: {
     type: String,
-    required: [true, 'Last name is required'],
+    required: false,
     trim: true,
     maxlength: [100, 'Last name cannot exceed 100 characters']
   },
@@ -107,7 +107,7 @@ LeadSchema.index({ tenant_id: 1, created_at: -1 });
 
 // Virtual for full name
 LeadSchema.virtual('fullName').get(function() {
-  return `${this.firstName} ${this.lastName}`;
+  return this.lastName ? `${this.firstName} ${this.lastName}` : this.firstName;
 });
 
 export default mongoose.model<ILead>('Lead', LeadSchema); 

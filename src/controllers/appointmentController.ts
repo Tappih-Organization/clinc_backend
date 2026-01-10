@@ -21,7 +21,10 @@ export class AppointmentController {
       // Add tenant_id to 
       const appointmentData = addTenantToData(req, {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id
+
+        
       });
       
       const appointment = new Appointment(appointmentData);

@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from "../types/express";
 import { validationResult } from 'express-validator';
 import { SampleType } from '../models';
-
+import { addTenantToData } from '../middleware/auth';
 export class SampleTypeController {
-  static async createSampleType(req: Request, res: Response): Promise<void> {
+  static async createSampleType(req: AuthRequest, res: Response): Promise<void> {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -14,8 +15,13 @@ export class SampleTypeController {
         });
         return;
       }
+        const sampleType = new SampleType({
+  ...req.body,
+  tenant_id: req.tenant_id,
+});
 
-      const sampleType = new SampleType(req.body);
+             
+     
       await sampleType.save();
 
       res.status(201).json({
