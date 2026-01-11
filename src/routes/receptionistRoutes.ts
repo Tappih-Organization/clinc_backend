@@ -1,12 +1,32 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { body, param, CustomValidator } from 'express-validator';
 import { ReceptionistController } from '../controllers/receptionistController';
 import { authenticate, requireStaff } from '../middleware/auth';
+import { clinicContext } from '../middleware/clinicContext';
+import AppointmentStatus from '../models/AppointmentStatus';
 
 const router = Router();
 
-// All receptionist routes require authentication and staff privileges
+// Custom validator for dynamic appointment status
+const validateAppointmentStatus: CustomValidator = async (value, { req }) => {
+  if (!value) return true;
+  const tenant_id = (req as any).tenant_id;
+  const clinic_id = (req as any).clinic_id;
+  if (!tenant_id || !clinic_id) {
+    throw new Error('Tenant and clinic context is required');
+  }
+  const statusExists = await AppointmentStatus.findOne({
+    tenant_id, clinic_id, code: value.toLowerCase(), is_active: true
+  });
+  if (!statusExists) {
+    throw new Error(`Status '${value}' does not exist or is not active for this clinic`);
+  }
+  return true;
+};
+
+// All receptionist routes require authentication, clinic context, and staff privileges
 router.use(authenticate);
+router.use(clinicContext);
 router.use(requireStaff);
 
 /**
@@ -314,8 +334,7 @@ router.get('/queue', ReceptionistController.getAppointmentQueue);
  */
 router.put('/appointments/:appointmentId/status', [
   param('appointmentId').isMongoId().withMessage('Valid appointment ID is required'),
-  body('status').isIn(['scheduled', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'])
-                .withMessage('Invalid status')
+  body('status').custom(validateAppointmentStatus)
 ], ReceptionistController.updateAppointmentStatus);
 
 export default router; 

@@ -7,16 +7,17 @@ import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData, canAccessTe
 export class PatientController {
   static async createPatient(req: AuthRequest, res: Response): Promise<void> {
     try {
+      console.log('Create patient request body:', req.body);
+      console.log('Request tenant_id:', req.tenant_id);
+      console.log('Request clinic_id:', req.clinic_id);
 
-
-const isFutureDate = (date: Date) => {
-  return date.getTime() > new Date().getTime();
-};
-
-
+      const isFutureDate = (date: Date) => {
+        return date.getTime() > new Date().getTime();
+      };
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -54,8 +55,12 @@ const isFutureDate = (date: Date) => {
         gender: req.body.gender || 'male' // Default to male if not provided
       });
       
+      console.log('Patient data before save:', patientData);
+      
       const patient = new Patient(patientData);
       await patient.save();
+      
+      console.log('Patient saved successfully:', patient._id);
 
       res.status(201).json({
         success: true,
@@ -64,6 +69,12 @@ const isFutureDate = (date: Date) => {
       });
     } catch (error: any) {
       console.error('Create patient error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        body: req.body
+      });
       
       if (error.message === 'Tenant context is required for this operation') {
         res.status(400).json({
@@ -73,10 +84,35 @@ const isFutureDate = (date: Date) => {
         return;
       }
 
+      // Handle Mongoose validation errors
+      if (error.name === 'ValidationError') {
+        const validationErrors = Object.values(error.errors).map((err: any) => ({
+          field: err.path,
+          message: err.message
+        }));
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validationErrors
+        });
+        return;
+      }
+
+      // Handle duplicate key errors (e.g., duplicate phone or email)
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        res.status(400).json({
+          success: false,
+          message: `Duplicate ${field} value`,
+          field: field
+        });
+        return;
+      }
       
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }

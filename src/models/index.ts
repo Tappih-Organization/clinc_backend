@@ -31,4 +31,5 @@ export { default as AITestAnalysis, IAITestAnalysis } from './AITestAnalysis';
 export { default as AITestComparison, IAITestComparison } from './AITestComparison';
 export { default as Odontogram, IOdontogram, IToothCondition } from './Odontogram';
 export { default as Settings } from './Settings';
-export type { ISettings, IWorkingHours } from './Settings'; 
+export type { ISettings, IWorkingHours } from './Settings';
+export { default as AppointmentStatus, IAppointmentStatus } from './AppointmentStatus'; 

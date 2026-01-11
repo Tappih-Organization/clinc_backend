@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Patient, Appointment, User, Lead } from '../models';
 import { AuthRequest } from '../types/express';
+import AppointmentStatus from '../models/AppointmentStatus';
 
 export class ReceptionistController {
   
@@ -258,20 +259,40 @@ export class ReceptionistController {
     try {
       const { appointmentId } = req.params;
       const { status } = req.body;
+      const tenant_id = req.tenant_id;
+      const clinic_id = req.clinic_id;
 
-      const validStatuses = ['scheduled', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'];
-      if (!validStatuses.includes(status)) {
+      if (!tenant_id || !clinic_id) {
         res.status(400).json({
           success: false,
-          message: 'Invalid status'
+          message: 'Tenant and clinic context is required'
         });
         return;
       }
 
+      // Validate status dynamically from AppointmentStatus collection
+      const statusExists = await AppointmentStatus.findOne({
+        tenant_id,
+        clinic_id,
+        code: status.toLowerCase(),
+        is_active: true
+      });
+
+      if (!statusExists) {
+        res.status(400).json({
+          success: false,
+          message: `Status '${status}' does not exist or is not active for this clinic`
+        });
+        return;
+      }
+
+      // Use the code from the database (in case of case differences)
+      const statusCode = statusExists.code;
+
       const appointment = await Appointment.findByIdAndUpdate(
         appointmentId,
-        { status },
-        { new: true }
+        { status: statusCode },
+        { new: true, runValidators: true }
       ).populate('patient_id', 'first_name last_name')
        .populate('doctor_id', 'first_name last_name');
 
