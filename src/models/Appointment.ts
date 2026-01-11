@@ -9,7 +9,7 @@ export interface IAppointment extends Document {
   invoice_id?: mongoose.Types.ObjectId;
   appointment_date: Date;
   duration: number;
-  status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+  status: string; // Dynamic status code from AppointmentStatus collection
   type: string;
   reason?: string;
   notes: string;
@@ -80,9 +80,37 @@ const AppointmentSchema: Schema = new Schema({
   },
   status: {
     type: String,
-    enum: ['scheduled', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'],
     required: [true, 'Appointment status is required'],
-    default: 'scheduled'
+    validate: {
+      validator: async function(value: string) {
+        if (!value) {
+          // Value will be set by controller before save
+          return true;
+        }
+        
+        // Dynamic validation: check if status exists in AppointmentStatus collection
+        const AppointmentStatus = mongoose.model('AppointmentStatus');
+        // Access document properties correctly in validator context
+        const doc = this as any;
+        const tenant_id = doc.tenant_id;
+        const clinic_id = doc.clinic_id;
+        
+        if (!tenant_id || !clinic_id) {
+          // If tenant/clinic not set yet, allow it (will be validated in controller)
+          return true;
+        }
+        
+        const statusExists = await AppointmentStatus.findOne({
+          tenant_id,
+          clinic_id,
+          code: value.toLowerCase(),
+          is_active: true
+        });
+        
+        return !!statusExists;
+      },
+      message: 'Status code does not exist or is not active for this clinic'
+    }
   },
   type: {
     type: String,
@@ -142,18 +170,39 @@ AppointmentSchema.virtual('end_time').get(function() {
 });
 
 // Method to check if appointment is upcoming
-AppointmentSchema.methods.isUpcoming = function(this: IAppointment) {
-  return this.appointment_date > new Date() && this.status !== 'cancelled';
+AppointmentSchema.methods.isUpcoming = async function(this: IAppointment) {
+  const AppointmentStatus = mongoose.model('AppointmentStatus');
+  const statusConfig = await AppointmentStatus.findOne({
+    tenant_id: this.tenant_id,
+    clinic_id: this.clinic_id,
+    code: this.status,
+    is_active: true
+  });
+  
+  // Check if status is cancelled (fallback to hard-coded check if status config doesn't exist)
+  const isCancelled = statusConfig ? statusConfig.code === 'cancelled' : this.status === 'cancelled';
+  return this.appointment_date > new Date() && !isCancelled;
 };
 
 // Method to check if appointment can be cancelled
-AppointmentSchema.methods.canBeCancelled = function(this: IAppointment) {
+AppointmentSchema.methods.canBeCancelled = async function(this: IAppointment) {
   const now = new Date();
   const appointmentTime = new Date(this.appointment_date);
   const timeDiff = appointmentTime.getTime() - now.getTime();
   const hoursDiff = timeDiff / (1000 * 3600);
   
-  return hoursDiff >= 24 && ['scheduled', 'confirmed'].includes(this.status);
+  // Check if status allows cancellation (scheduled or confirmed)
+  const AppointmentStatus = mongoose.model('AppointmentStatus');
+  const statusConfig = await AppointmentStatus.findOne({
+    tenant_id: this.tenant_id,
+    clinic_id: this.clinic_id,
+    code: this.status,
+    is_active: true
+  });
+  
+  // Allow cancellation for scheduled/confirmed statuses or if status config doesn't exist (fallback)
+  const cancellableStatuses = ['scheduled', 'confirmed'];
+  return hoursDiff >= 24 && (cancellableStatuses.includes(this.status) || !statusConfig);
 };
 
 export default mongoose.model<IAppointment>('Appointment', AppointmentSchema); 

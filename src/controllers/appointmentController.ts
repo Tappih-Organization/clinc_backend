@@ -5,6 +5,7 @@ import { AuthRequest } from '../types/express';
 import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData } from '../middleware/auth';
 import Invoice from '../models/Invoice';
 import mongoose from 'mongoose';
+import AppointmentStatus from '../models/AppointmentStatus';
 export class AppointmentController {
   static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -18,13 +19,48 @@ export class AppointmentController {
         return;
       }
 
+      const tenant_id = req.tenant_id;
+      const clinic_id = req.clinic_id;
+      
+      // Validate status dynamically if provided, otherwise use default
+      let statusCode = req.body.status || 'scheduled';
+      if (req.body.status) {
+        const statusExists = await AppointmentStatus.findOne({
+          tenant_id,
+          clinic_id,
+          code: req.body.status.toLowerCase(),
+          is_active: true
+        });
+        
+        if (!statusExists) {
+          res.status(400).json({
+            success: false,
+            message: `Status '${req.body.status}' does not exist or is not active for this clinic`
+          });
+          return;
+        }
+        
+        statusCode = statusExists.code;
+      } else {
+        // If no status provided, get default status
+        const defaultStatus = await AppointmentStatus.findOne({
+          tenant_id,
+          clinic_id,
+          is_default: true,
+          is_active: true
+        });
+        
+        if (defaultStatus) {
+          statusCode = defaultStatus.code;
+        }
+      }
+      
       // Add tenant_id to 
       const appointmentData = addTenantToData(req, {
         ...req.body,
-        clinic_id: req.clinic_id,
-        tenant_id: req.tenant_id
-
-        
+        clinic_id,
+        tenant_id,
+        status: statusCode
       });
       
       const appointment = new Appointment(appointmentData);
@@ -347,6 +383,29 @@ export class AppointmentController {
       }
 
       const { id } = req.params;
+      const tenant_id = req.tenant_id;
+      const clinic_id = req.clinic_id;
+      
+      // Validate status dynamically if provided
+      if (req.body.status) {
+        const statusExists = await AppointmentStatus.findOne({
+          tenant_id,
+          clinic_id,
+          code: req.body.status.toLowerCase(),
+          is_active: true
+        });
+        
+        if (!statusExists) {
+          res.status(400).json({
+            success: false,
+            message: `Status '${req.body.status}' does not exist or is not active for this clinic`
+          });
+          return;
+        }
+        
+        // Use the code from the database (in case of case differences)
+        req.body.status = statusExists.code;
+      }
       
       let filter: any = { _id: id };
       

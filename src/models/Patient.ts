@@ -80,14 +80,7 @@ const PatientSchema: Schema = new Schema({
     type: String,
     required: false,
     lowercase: true,
-    trim: true,
-    validate: {
-      validator: function(value: string) {
-        if (!value) return true; // Allow empty email
-        return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(value);
-      },
-      message: 'Please enter a valid email'
-    }
+    trim: true
   },
   address: {
     type: String,
