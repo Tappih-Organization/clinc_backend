@@ -20,7 +20,9 @@ export class PayrollController {
 
       const payrollData = {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id
+        
       };
 
       const payroll = new Payroll(payrollData);
@@ -130,7 +132,8 @@ export class PayrollController {
 
       const payroll = await Payroll.findOne({
         _id: id,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id
       }).populate('employee_id', 'first_name last_name email role phone');
 
       if (!payroll) {
@@ -177,9 +180,11 @@ export class PayrollController {
         return;
       }
 
+   const dataToUpdate = { ...req.body, clinic_id: req.clinic_id, tenant_id: req.tenant_id };
+
       const payroll = await Payroll.findOneAndUpdate(
-        { _id: id, clinic_id: req.clinic_id }, 
-        req.body, 
+        { _id: id, clinic_id: req.clinic_id, tenant_id: req.tenant_id }, 
+        dataToUpdate, 
         { 
           new: true, 
           runValidators: true 
