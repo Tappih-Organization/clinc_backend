@@ -5,6 +5,7 @@ import { Clinic, UserClinic, User, Role } from '../models';
 import { AuthRequest } from '../types/express';
 import { getClinicScopedFilter } from '../middleware/clinicContext';
 import { getTenantScopedFilter, addTenantToData, canAccessTenant } from '../middleware/auth';
+import { createDefaultStatusesForClinic } from '../migrations/createDefaultAppointmentStatuses';
 
 export class ClinicController {
   
@@ -228,6 +229,18 @@ export class ClinicController {
       
       const userClinic = new UserClinic(userClinicData);
       await userClinic.save();
+
+      // Create default appointment statuses for the new clinic
+      try {
+        await createDefaultStatusesForClinic(
+          new mongoose.Types.ObjectId(req.tenant_id!),
+          clinic._id
+        );
+        console.log(`✅ Default appointment statuses created for clinic: ${clinic._id}`);
+      } catch (error) {
+        console.error('⚠️  Error creating default appointment statuses:', error);
+        // Don't fail clinic creation if status creation fails
+      }
 
       res.status(201).json({
         success: true,
