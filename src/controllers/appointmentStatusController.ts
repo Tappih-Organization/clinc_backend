@@ -303,11 +303,13 @@ export class AppointmentStatusController {
         return;
       }
 
-      // Prevent deletion of default status
-      if (status.is_default) {
+      // Prevent deletion of default status or 'scheduled' status
+      if (status.is_default || status.code === 'scheduled') {
         res.status(400).json({
           success: false,
-          message: 'Cannot delete default status'
+          message: status.code === 'scheduled' 
+            ? 'Cannot delete the Scheduled status as it is a required default status'
+            : 'Cannot delete default status'
         });
         return;
       }

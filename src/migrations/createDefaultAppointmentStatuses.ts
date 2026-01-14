@@ -72,6 +72,43 @@ const DEFAULT_STATUSES = [
   },
 ];
 
+/**
+ * Create default appointment statuses for a specific clinic
+ * @param tenantId - The tenant ID
+ * @param clinicId - The clinic ID
+ */
+export async function createDefaultStatusesForClinic(
+  tenantId: mongoose.Types.ObjectId,
+  clinicId: mongoose.Types.ObjectId
+): Promise<void> {
+  try {
+    for (const statusData of DEFAULT_STATUSES) {
+      // Check if status already exists for this clinic
+      const existingStatus = await AppointmentStatus.findOne({
+        tenant_id: tenantId,
+        clinic_id: clinicId,
+        code: statusData.code,
+      });
+
+      if (existingStatus) {
+        continue;
+      }
+
+      // Create new status
+      const status = new AppointmentStatus({
+        tenant_id: tenantId,
+        clinic_id: clinicId,
+        ...statusData,
+      });
+
+      await status.save();
+    }
+  } catch (error) {
+    console.error('❌ Error creating default appointment statuses for clinic:', error);
+    throw error;
+  }
+}
+
 export async function createDefaultAppointmentStatuses(): Promise<void> {
   try {
     console.log('🔄 Starting default appointment statuses creation...');
