@@ -139,7 +139,7 @@ export class UserController {
       }).populate({
         path: 'clinic_id',
         match: { is_active: true },
-        select: 'name code description address.city address.state is_active'
+        select: 'name code description address.city address.state is_active is_main_clinic parent_clinic_id'
       });
 
       // Filter out clinics that are null (inactive)
