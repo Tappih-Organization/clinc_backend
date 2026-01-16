@@ -38,7 +38,7 @@ export class UserClinicController {
         .populate({
           path: 'clinic_id',
           match: { is_active: true }, // Only populate active clinics
-          select: 'name code description address contact settings is_active tenant_id created_at'
+          select: 'name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at'
         })
         .sort({ joined_at: 1 });
 
@@ -277,7 +277,7 @@ export class UserClinicController {
         user_id: req.user?._id,
         clinic_id: clinic_id,
         is_active: true
-      }).populate('clinic_id', 'name code description is_active');
+      }).populate('clinic_id', 'name code description is_active is_main_clinic parent_clinic_id');
 
       // If no relationship exists, create one automatically with new role system
       if (!userClinic) {
@@ -312,7 +312,7 @@ export class UserClinicController {
         }
 
         await userClinic.save();
-        await userClinic.populate('clinic_id', 'name code description is_active');
+        await userClinic.populate('clinic_id', 'name code description is_active is_main_clinic parent_clinic_id');
       } else {
         // Relationship exists. Ensure it conforms to new role system and has a primary role
         try {
@@ -405,7 +405,7 @@ export class UserClinicController {
         user_id: req.user?._id,
         clinic_id: req.clinic_id,
         is_active: true
-      }).populate('clinic_id', 'name code description address contact settings');
+      }).populate('clinic_id', 'name code description address contact settings is_active is_main_clinic parent_clinic_id');
 
       if (!userClinic) {
         res.status(404).json({

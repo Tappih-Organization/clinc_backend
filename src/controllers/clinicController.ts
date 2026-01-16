@@ -1,11 +1,12 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Clinic, UserClinic, User, Role } from '../models';
 import { AuthRequest } from '../types/express';
 import { getClinicScopedFilter } from '../middleware/clinicContext';
 import { getTenantScopedFilter, addTenantToData, canAccessTenant } from '../middleware/auth';
 import { createDefaultStatusesForClinic } from '../migrations/createDefaultAppointmentStatuses';
+import { validateClinicBusinessRules, validateMainClinicDeletion, validateMainClinicStatus } from '../utils/clinicValidation';
 
 export class ClinicController {
   
@@ -23,13 +24,13 @@ export class ClinicController {
       if (isSuperAdmin) {
         // Super admins can see all clinics across all tenants
         clinics = await Clinic.find({})
-          .select('name code description address contact is_active tenant_id created_at updated_at')
+          .select('name code description address contact is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at')
           .sort({ name: 1 });
       } else {
         // Regular admins can only see clinics from their own tenant
         const clinicFilter = getTenantScopedFilter(req, {});
         clinics = await Clinic.find(clinicFilter)
-          .select('name code description address contact is_active tenant_id created_at updated_at')
+          .select('name code description address contact is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at')
           .sort({ name: 1 });
       }
 
@@ -78,7 +79,7 @@ export class ClinicController {
       if (isSuperAdmin) {
         // Return all active clinics for super_admin users
         const allClinics = await Clinic.find({ is_active: true })
-          .select('name code description address contact settings is_active tenant_id created_at')
+          .select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at')
           .sort({ name: 1 });
 
         // Format to match UserClinic structure expected by frontend
@@ -108,7 +109,7 @@ export class ClinicController {
       const userClinics = await UserClinic.find(userClinicFilter).populate({
         path: 'clinic_id',
         match: { is_active: true },
-        select: 'name code description address contact settings is_active tenant_id created_at'
+        select: 'name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at'
       }).sort({ joined_at: 1 });
 
       // Filter out clinics that are null (inactive)
@@ -157,7 +158,9 @@ export class ClinicController {
         return;
       }
 
-      const clinic = await Clinic.findById(req.clinic_id);
+      const clinic = await Clinic.findById(req.clinic_id)
+        .select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at');
+      
       if (!clinic) {
         res.status(404).json({
           success: false,
@@ -180,7 +183,7 @@ export class ClinicController {
   }
 
   /**
-   * Create a new clinic (any authenticated user)
+   * Create a new clinic (only Main Clinic users can create Sub Clinics)
    * POST /api/clinics
    */
   static async createClinic(req: AuthRequest, res: Response): Promise<void> {
@@ -195,9 +198,8 @@ export class ClinicController {
         return;
       }
 
-      // Allow any authenticated user to create clinics
       // Ensure user is authenticated (should be handled by authenticate middleware)
-      if (!req.user?._id) {
+      if (!req.user?._id || !req.tenant_id) {
         res.status(401).json({
           success: false,
           message: 'Authentication required'
@@ -205,10 +207,112 @@ export class ClinicController {
         return;
       }
 
-      // Add tenant_id to clinic data from authenticated user
-      const clinicData = addTenantToData(req, req.body);
+      // Frontend MUST NOT send is_main_clinic or parent_clinic_id
+      // Remove them if accidentally sent
+      const { is_main_clinic, parent_clinic_id, ...clinicBodyData } = req.body;
+
+      // Check if tenant already has a main clinic (check all clinics, not just active ones)
+      const existingMainClinic = await Clinic.findOne({
+        tenant_id: req.tenant_id,
+        is_main_clinic: true
+      });
+
+      // Also check if tenant has ANY clinics at all (to determine if this is the first clinic)
+      const tenantClinicsCount = await Clinic.countDocuments({
+        tenant_id: req.tenant_id
+      });
+
+      // Determine clinic type based on whether main clinic exists
+      let isMainClinic = false;
+      let parentClinicId: Types.ObjectId | null = null;
+
+      // If no clinics exist for this tenant, this is the first clinic = Main Clinic
+      if (tenantClinicsCount === 0) {
+        // First clinic in tenant becomes Main Clinic automatically
+        isMainClinic = true;
+        parentClinicId = null;
+        console.log(`✅ First clinic for tenant ${req.tenant_id} - Setting as Main Clinic`);
+      } else if (!existingMainClinic) {
+        // No main clinic exists but other clinics do - this shouldn't happen normally
+        // but handle it by making this the main clinic
+        console.warn(`⚠️  Tenant ${req.tenant_id} has ${tenantClinicsCount} clinics but no main clinic. Setting new clinic as main.`);
+        isMainClinic = true;
+        parentClinicId = null;
+      } else {
+        // Check if user belongs to Main Clinic
+        const userClinic = await UserClinic.findOne({
+          user_id: req.user._id,
+          clinic_id: existingMainClinic._id,
+          is_active: true
+        });
+
+        if (!userClinic) {
+          // User doesn't belong to Main Clinic - check if they belong to any clinic
+          const userClinics = await UserClinic.find({
+            user_id: req.user._id,
+            is_active: true
+          }).populate('clinic_id', 'is_main_clinic');
+
+          const belongsToSubClinic = userClinics.some((uc: any) => 
+            uc.clinic_id && !uc.clinic_id.is_main_clinic
+          );
+
+          if (belongsToSubClinic) {
+            res.status(403).json({
+              success: false,
+              message: 'Sub Clinics are not allowed to create other clinics'
+            });
+            return;
+          }
+
+          // User doesn't belong to any clinic - allow creation (will be main clinic if none exists)
+          isMainClinic = !existingMainClinic;
+          parentClinicId = existingMainClinic ? existingMainClinic._id : null;
+        } else {
+          // User belongs to Main Clinic - create Sub Clinic
+          isMainClinic = false;
+          parentClinicId = existingMainClinic._id;
+        }
+      }
+
+      // Validate business rules before creating clinic
+      const validation = await validateClinicBusinessRules(
+        new Types.ObjectId(req.tenant_id!),
+        isMainClinic,
+        parentClinicId
+      );
+
+      if (!validation.valid) {
+        res.status(400).json({
+          success: false,
+          message: validation.error
+        });
+        return;
+      }
+
+      // Add tenant_id and clinic hierarchy fields to clinic data
+      const clinicData = addTenantToData(req, {
+        ...clinicBodyData,
+        is_main_clinic: isMainClinic,
+        parent_clinic_id: parentClinicId
+      });
+      
+      console.log(`🏥 Creating clinic with data:`, {
+        name: clinicData.name,
+        tenant_id: clinicData.tenant_id,
+        is_main_clinic: clinicData.is_main_clinic,
+        parent_clinic_id: clinicData.parent_clinic_id
+      });
+      
       const clinic = new Clinic(clinicData);
       await clinic.save();
+      
+      console.log(`✅ Clinic created successfully:`, {
+        _id: clinic._id,
+        name: clinic.name,
+        is_main_clinic: clinic.is_main_clinic,
+        parent_clinic_id: clinic.parent_clinic_id
+      });
 
       // Automatically add the creator as admin of the new clinic
       const adminRole = await Role.findOne({ name: 'admin', is_system_role: true });
@@ -242,10 +346,14 @@ export class ClinicController {
         // Don't fail clinic creation if status creation fails
       }
 
+      // Reload clinic to ensure all fields are populated
+      const createdClinic = await Clinic.findById(clinic._id)
+        .select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at');
+
       res.status(201).json({
         success: true,
         message: 'Clinic created successfully',
-        data: clinic
+        data: createdClinic
       });
     } catch (error: any) {
       console.error('Error creating clinic:', error);
@@ -286,7 +394,9 @@ export class ClinicController {
         return;
       }
 
-      const clinic = await Clinic.findById(id);
+      const clinic = await Clinic.findById(id)
+        .select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at');
+      
       if (!clinic) {
         res.status(404).json({
           success: false,
@@ -352,11 +462,42 @@ export class ClinicController {
         }
       }
 
+      // Check if clinic exists
+      const existingClinic = await Clinic.findById(id);
+      if (!existingClinic) {
+        res.status(404).json({
+          success: false,
+          message: 'Clinic not found'
+        });
+        return;
+      }
+
+      // Prevent changing is_main_clinic or parent_clinic_id through update
+      // These fields can only be set during creation
+      const updateData = { ...req.body };
+      delete updateData.is_main_clinic;
+      delete updateData.parent_clinic_id;
+
+      // Validate Main Clinic status change
+      if (req.body.is_active !== undefined) {
+        const statusValidation = validateMainClinicStatus(
+          existingClinic.is_main_clinic,
+          req.body.is_active
+        );
+        if (!statusValidation.valid) {
+          res.status(400).json({
+            success: false,
+            message: statusValidation.error
+          });
+          return;
+        }
+      }
+
       const clinic = await Clinic.findByIdAndUpdate(
         id,
-        { ...req.body, updated_at: new Date() },
+        { ...updateData, updated_at: new Date() },
         { new: true, runValidators: true }
-      );
+      ).select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at');
 
       if (!clinic) {
         res.status(404).json({
@@ -404,12 +545,7 @@ export class ClinicController {
         return;
       }
 
-      const clinic = await Clinic.findByIdAndUpdate(
-        id,
-        { is_active: false, updated_at: new Date() },
-        { new: true }
-      );
-
+      const clinic = await Clinic.findById(id);
       if (!clinic) {
         res.status(404).json({
           success: false,
@@ -417,6 +553,36 @@ export class ClinicController {
         });
         return;
       }
+
+      // Validate Main Clinic deletion rules
+      const deletionValidation = await validateMainClinicDeletion(
+        clinic._id,
+        clinic.tenant_id
+      );
+
+      if (!deletionValidation.valid) {
+        res.status(400).json({
+          success: false,
+          message: deletionValidation.error
+        });
+        return;
+      }
+
+      // Prevent disabling Main Clinic
+      const statusValidation = validateMainClinicStatus(clinic.is_main_clinic, false);
+      if (!statusValidation.valid) {
+        res.status(400).json({
+          success: false,
+          message: statusValidation.error
+        });
+        return;
+      }
+
+      const updatedClinic = await Clinic.findByIdAndUpdate(
+        id,
+        { is_active: false, updated_at: new Date() },
+        { new: true }
+      );
 
       // Deactivate all user-clinic relationships
       await UserClinic.updateMany(
@@ -472,7 +638,8 @@ export class ClinicController {
         { $group: { _id: '$role', count: { $sum: 1 } } }
       ]);
 
-      const clinic = await Clinic.findById(id);
+      const clinic = await Clinic.findById(id)
+        .select('name code description address contact settings is_active is_main_clinic parent_clinic_id tenant_id created_at updated_at');
 
       res.json({
         success: true,
@@ -480,6 +647,8 @@ export class ClinicController {
           clinic_info: {
             name: clinic?.name,
             code: clinic?.code,
+            is_main_clinic: clinic?.is_main_clinic,
+            parent_clinic_id: clinic?.parent_clinic_id,
             created_at: clinic?.created_at
           },
           users: {

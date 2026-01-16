@@ -6,6 +6,8 @@ export interface IClinic extends Document {
   name: string;
   code: string; // Unique clinic identifier (e.g., "CLN001")
   description?: string;
+  is_main_clinic: boolean; // true for only one clinic per tenant
+  parent_clinic_id: Types.ObjectId | null; // required for sub clinics, null for main clinic
   address: {
     street: string;
     city: string;
@@ -94,6 +96,31 @@ const ClinicSchema: Schema = new Schema({
     type: String,
     trim: true,
     maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  is_main_clinic: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  parent_clinic_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Clinic',
+    default: null,
+    index: true,
+    validate: {
+      validator: function(this: IClinic, value: Types.ObjectId | null) {
+        // Main clinic must have parent_clinic_id = null
+        if (this.is_main_clinic && value !== null) {
+          return false;
+        }
+        // Sub clinic must have parent_clinic_id set
+        if (!this.is_main_clinic && value === null) {
+          return false;
+        }
+        return true;
+      },
+      message: 'Main clinic must have parent_clinic_id = null, Sub clinic must have parent_clinic_id set'
+    }
   },
   address: {
     street: {
@@ -202,6 +229,9 @@ ClinicSchema.index({ tenant_id: 1 });
 ClinicSchema.index({ tenant_id: 1, code: 1 }, { unique: true }); // Unique code per tenant
 ClinicSchema.index({ tenant_id: 1, is_active: 1 });
 ClinicSchema.index({ tenant_id: 1, 'contact.email': 1 });
+ClinicSchema.index({ tenant_id: 1, is_main_clinic: 1 }); // For finding main clinic per tenant
+ClinicSchema.index({ tenant_id: 1, parent_clinic_id: 1 }); // For finding sub clinics
+ClinicSchema.index({ parent_clinic_id: 1 }); // For finding all sub clinics of a main clinic
 
 // Virtual properties
 ClinicSchema.virtual('full_address').get(function(this: IClinic) {
@@ -251,6 +281,23 @@ ClinicSchema.pre<IClinic>('save', function(next) {
     const initials = nameWords.map((word: string) => word.charAt(0).toUpperCase()).join('');
     const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     this.code = `${initials}${randomNum}`;
+  }
+  next();
+});
+
+// Pre-save middleware to ensure only one main clinic per tenant
+ClinicSchema.pre<IClinic>('save', async function(next) {
+  if (this.isNew && this.is_main_clinic) {
+    // Check if there's already a main clinic for this tenant
+    const existingMainClinic = await mongoose.model('Clinic').findOne({
+      tenant_id: this.tenant_id,
+      is_main_clinic: true,
+      is_active: true
+    });
+    
+    if (existingMainClinic) {
+      return next(new Error('Only one main clinic is allowed per tenant'));
+    }
   }
   next();
 });
