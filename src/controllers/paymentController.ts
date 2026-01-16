@@ -635,6 +635,7 @@ export class PaymentController {
         customer_email,
         patient_id,
         clinic_id: req.clinic_id!,
+        tenant_id: req.tenant_id!,
         success_url,
         cancel_url,
         metadata

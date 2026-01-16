@@ -20,7 +20,8 @@ export class InventoryController {
       // Add tenant_id to inventory data with validation
       const inventoryData = addTenantToData(req, {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: req.clinic_id,
+        tenant_id: req.tenant_id
       });
 
       const inventoryItem = new Inventory(inventoryData);

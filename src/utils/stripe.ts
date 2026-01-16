@@ -27,6 +27,7 @@ export interface CreatePaymentLinkParams {
   customer_email: string;
   patient_id: string;
   clinic_id: string;
+   tenant_id: string;
   success_url?: string;
   cancel_url?: string;
   metadata?: Record<string, string>;
@@ -112,6 +113,7 @@ export class StripeService {
 
       // Create payment record in database first
       const paymentRecord = new Payment({
+        tenant_id: new Types.ObjectId(params.tenant_id),
         clinic_id: new Types.ObjectId(params.clinic_id),
         patient_id: new Types.ObjectId(params.patient_id),
         amount: params.amount,
