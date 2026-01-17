@@ -23,8 +23,15 @@ const inventoryValidation = [
 ];
 
 const stockUpdateValidation = [
-  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be a positive integer'),
-  body('operation').isIn(['add', 'subtract']).withMessage('Operation must be either add or subtract')
+  body('quantity')
+    .custom((value) => {
+      const num = Number(value);
+      return !isNaN(num) && num > 0 && Number.isInteger(num);
+    })
+    .withMessage('Quantity must be a positive integer'),
+  body('operation').isIn(['add', 'subtract']).withMessage('Operation must be either add or subtract'),
+  body('branchId').optional().isMongoId().withMessage('Branch ID must be a valid MongoDB ID'),
+  body('warehouseId').optional().isMongoId().withMessage('Warehouse ID must be a valid MongoDB ID')
 ];
 
 // Routes

@@ -15,6 +15,7 @@ const resourceMap: Record<string, string> = {
   invoices: 'invoices',
   payments: 'payments',
   inventory: 'inventory',
+  warehouses: 'warehouse',
   departments: 'departments',
   services: 'services',
   tests: 'tests',

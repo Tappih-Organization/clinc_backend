@@ -70,6 +70,18 @@ const defaultPermissions = [
   { name: 'inventory.delete', display_name: 'Delete Inventory Items', description: 'Delete inventory items', module: 'inventory_management', action: 'delete', level: 'delete' },
   { name: 'inventory.stock_update', display_name: 'Update Stock', description: 'Update stock levels', module: 'inventory_management', action: 'edit', level: 'edit' },
 
+  // WAREHOUSE MANAGEMENT MODULE
+  { name: 'warehouse.view', display_name: 'View Warehouses', description: 'View warehouse list and details', module: 'inventory_management', sub_module: 'warehouses', action: 'view', level: 'view' },
+  { name: 'warehouse.create', display_name: 'Create Warehouses', description: 'Create new warehouses', module: 'inventory_management', sub_module: 'warehouses', action: 'create', level: 'create' },
+  { name: 'warehouse.update', display_name: 'Update Warehouses', description: 'Update warehouse information', module: 'inventory_management', sub_module: 'warehouses', action: 'edit', level: 'edit' },
+  { name: 'warehouse.delete', display_name: 'Delete Warehouses', description: 'Delete warehouse records', module: 'inventory_management', sub_module: 'warehouses', action: 'delete', level: 'delete' },
+  { name: 'warehouse.assign_branches', display_name: 'Assign Branches to Warehouses', description: 'Assign branches to warehouses', module: 'inventory_management', sub_module: 'warehouses', action: 'assign', level: 'edit' },
+
+  // WAREHOUSE ITEMS MODULE
+  { name: 'item.view', display_name: 'View Items', description: 'View warehouse items', module: 'inventory_management', sub_module: 'items', action: 'view', level: 'view' },
+  { name: 'item.create', display_name: 'Create Items', description: 'Create new warehouse items', module: 'inventory_management', sub_module: 'items', action: 'create', level: 'create' },
+  { name: 'item.update', display_name: 'Update Items', description: 'Update warehouse items', module: 'inventory_management', sub_module: 'items', action: 'edit', level: 'edit' },
+
   // LAB MANAGEMENT MODULE
   { name: 'tests.view', display_name: 'View Tests', description: 'View test catalog', module: 'lab_management', sub_module: 'tests', action: 'view', level: 'view' },
   { name: 'tests.create', display_name: 'Create Tests', description: 'Create new test definitions', module: 'lab_management', sub_module: 'tests', action: 'create', level: 'create' },

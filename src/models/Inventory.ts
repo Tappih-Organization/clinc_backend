@@ -11,10 +11,20 @@ export interface IInventory extends Document {
   unit_price: number;
   supplier: string;
   expiry_date?: Date;
+  assignedBranches?: mongoose.Types.ObjectId[]; // Many-to-Many with Clinic (branches)
+  branchWarehouses?: Array<{
+    branchId: mongoose.Types.ObjectId;
+    warehouseId: mongoose.Types.ObjectId;
+  }>; // Mapping between branches and their warehouses
+  stockByBranchWarehouse?: Array<{
+    branchId: mongoose.Types.ObjectId;
+    warehouseId: mongoose.Types.ObjectId;
+    stock: number;
+  }>; // Stock quantity per branch/warehouse combination (for non-shared warehouses)
   created_at: Date;
   updated_at: Date;
   getTotalValue(): number;
-  updateStock(quantity: number, operation?: 'add' | 'subtract'): Promise<IInventory>;
+  updateStock(quantity: number, operation?: 'add' | 'subtract', branchId?: mongoose.Types.ObjectId, warehouseId?: mongoose.Types.ObjectId): Promise<IInventory>;
 }
 
 export interface IInventoryModel extends mongoose.Model<IInventory> {
@@ -101,7 +111,42 @@ const InventorySchema: Schema = new Schema({
       },
       message: 'Expiry date must be in the future'
     }
-  }
+  },
+  assignedBranches: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Clinic',
+    required: false
+  }],
+  branchWarehouses: [{
+    branchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Clinic',
+      required: true
+    },
+    warehouseId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      required: true
+    }
+  }],
+  stockByBranchWarehouse: [{
+    branchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Clinic',
+      required: true
+    },
+    warehouseId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      required: true
+    },
+    stock: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0
+    }
+  }]
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
@@ -113,6 +158,8 @@ InventorySchema.index({ tenant_id: 1, clinic_id: 1, sku: 1 }, { unique: true });
 InventorySchema.index({ tenant_id: 1, clinic_id: 1, category: 1 });
 InventorySchema.index({ tenant_id: 1, clinic_id: 1, current_stock: 1 });
 InventorySchema.index({ tenant_id: 1, clinic_id: 1, expiry_date: 1 });
+InventorySchema.index({ tenant_id: 1, assignedBranches: 1 }); // For branch filtering
+InventorySchema.index({ assignedBranches: 1 }); // For branch queries
 InventorySchema.index({ 
   tenant_id: 1,
   clinic_id: 1,
@@ -149,12 +196,101 @@ InventorySchema.methods.getTotalValue = function() {
 };
 
 // Method to update stock (add or subtract)
-InventorySchema.methods.updateStock = function(quantity: number, operation: 'add' | 'subtract' = 'add') {
-  if (operation === 'add') {
-    this.current_stock += Math.abs(quantity);
+// For shared warehouses: updates current_stock (affects all branches)
+// For non-shared warehouses: updates stockByBranchWarehouse for specific branch/warehouse
+InventorySchema.methods.updateStock = async function(
+  quantity: number, 
+  operation: 'add' | 'subtract' = 'add',
+  branchId?: mongoose.Types.ObjectId,
+  warehouseId?: mongoose.Types.ObjectId
+) {
+  const Warehouse = mongoose.model('Warehouse');
+  
+  // If branchId and warehouseId are provided, check if warehouse is shared
+  if (branchId && warehouseId) {
+    const warehouse = await Warehouse.findById(warehouseId);
+    
+    if (!warehouse) {
+      // Warehouse not found - fallback to global update
+      if (operation === 'add') {
+        this.current_stock += Math.abs(quantity);
+      } else {
+        this.current_stock = Math.max(0, this.current_stock - Math.abs(quantity));
+      }
+      return this.save();
+    }
+    
+    if (warehouse.isShared) {
+      // Shared warehouse: update global current_stock (affects all branches using this warehouse)
+      if (operation === 'add') {
+        this.current_stock += Math.abs(quantity);
+      } else {
+        this.current_stock = Math.max(0, this.current_stock - Math.abs(quantity));
+      }
+    } else {
+        // Non-shared warehouse: update stock for specific branch/warehouse combination ONLY
+        // Each branch/warehouse maintains separate stock - no sharing
+        if (!this.stockByBranchWarehouse) {
+          this.stockByBranchWarehouse = [];
+        }
+        
+        const stockEntry = this.stockByBranchWarehouse.find(
+          (entry: any) => 
+            entry.branchId.toString() === branchId.toString() &&
+            entry.warehouseId.toString() === warehouseId.toString()
+        );
+        
+        if (stockEntry) {
+          // Update existing entry - only affects this specific branch/warehouse
+          if (operation === 'add') {
+            stockEntry.stock += Math.abs(quantity);
+          } else {
+            stockEntry.stock = Math.max(0, stockEntry.stock - Math.abs(quantity));
+          }
+          // Mark the array as modified so Mongoose saves the changes
+          this.markModified('stockByBranchWarehouse');
+        } else {
+          // Create new entry for this branch/warehouse combination
+          // For non-shared warehouses, each branch/warehouse starts with its own stock
+          let initialStock = 0;
+          if (operation === 'add') {
+            // Adding stock: new entry gets the added quantity
+            initialStock = Math.abs(quantity);
+          } else {
+            // Subtracting stock: check if this is the first entry (backward compatibility)
+            // or if we need to initialize from current_stock
+            if (this.stockByBranchWarehouse.length === 0 && this.current_stock > 0) {
+              // First entry and item has stock: use current_stock as base
+              initialStock = Math.max(0, (this.current_stock as number) - Math.abs(quantity));
+            } else {
+              // Additional branch/warehouse or no existing stock: cannot subtract from 0
+              // This should have been validated in controller, but set to 0 as safety
+              initialStock = 0;
+            }
+          }
+          this.stockByBranchWarehouse.push({
+            branchId,
+            warehouseId,
+            stock: initialStock
+          });
+          // Mark the array as modified so Mongoose saves the changes
+          this.markModified('stockByBranchWarehouse');
+        }
+        
+        // For non-shared warehouses, current_stock should NOT be recalculated as sum
+        // Each branch/warehouse maintains separate stock
+        // current_stock is only used for backward compatibility and shared warehouses
+        // We keep it for display purposes but it doesn't affect individual branch stock
+      }
   } else {
-    this.current_stock = Math.max(0, this.current_stock - Math.abs(quantity));
+    // Fallback: update global current_stock (for backward compatibility)
+    if (operation === 'add') {
+      this.current_stock += Math.abs(quantity);
+    } else {
+      this.current_stock = Math.max(0, this.current_stock - Math.abs(quantity));
+    }
   }
+  
   return this.save();
 };
 

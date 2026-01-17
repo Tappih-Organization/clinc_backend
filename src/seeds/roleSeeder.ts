@@ -42,6 +42,9 @@ const defaultRoles = [
       
       'inventory.view', 'inventory.create', 'inventory.edit', 'inventory.delete', 'inventory.stock_update',
       
+      'warehouse.view', 'warehouse.create', 'warehouse.update', 'warehouse.delete', 'warehouse.assign_branches',
+      'item.view', 'item.create', 'item.update',
+      
       'tests.view', 'tests.create', 'tests.edit', 'tests.delete',
       'test_reports.view', 'test_reports.create', 'test_reports.edit', 'test_reports.verify',
       'lab_vendors.view', 'lab_vendors.create', 'lab_vendors.edit', 'lab_vendors.delete',
@@ -115,6 +118,8 @@ const defaultRoles = [
       
       // Inventory & Operations
       'inventory.view', 'inventory.create', 'inventory.edit', 'inventory.stock_update',
+      'warehouse.view', 'warehouse.create', 'warehouse.update', 'warehouse.assign_branches',
+      'item.view', 'item.create', 'item.update',
       'services.view', 'services.create', 'services.edit',
       'departments.view',
       'lab_vendors.view',

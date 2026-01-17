@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import mongoose, { Types } from 'mongoose';
-import { Clinic, UserClinic, User, Role } from '../models';
+import { Clinic, UserClinic, User, Role, Warehouse } from '../models';
 import { AuthRequest } from '../types/express';
 import { getClinicScopedFilter } from '../middleware/clinicContext';
 import { getTenantScopedFilter, addTenantToData, canAccessTenant } from '../middleware/auth';
@@ -344,6 +344,20 @@ export class ClinicController {
       } catch (error) {
         console.error('⚠️  Error creating default appointment statuses:', error);
         // Don't fail clinic creation if status creation fails
+      }
+
+      // Auto-create warehouses for the new branch/clinic
+      try {
+        await createDefaultWarehousesForBranch(
+          new mongoose.Types.ObjectId(req.tenant_id!),
+          clinic._id,
+          clinic.name
+        );
+        console.log(`✅ Default warehouses created for clinic: ${clinic._id}`);
+      } catch (error) {
+        console.error('⚠️  Error creating default warehouses:', error);
+        // Don't fail clinic creation if warehouse creation fails, but log it
+        // In production, you might want to rollback or handle this differently
       }
 
       // Reload clinic to ensure all fields are populated
@@ -1073,5 +1087,50 @@ export class ClinicController {
         message: 'Error removing user from clinic'
       });
     }
+  }
+}
+
+/**
+ * Helper function to create default warehouse for a new branch/clinic
+ * Rule: Each branch must have exactly ONE MAIN warehouse (default warehouse)
+ * Only the MAIN warehouse is created automatically - SUB warehouses can be created manually if needed
+ */
+async function createDefaultWarehousesForBranch(
+  tenantId: Types.ObjectId,
+  branchId: Types.ObjectId,
+  branchName: string
+): Promise<void> {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Check if MAIN warehouse already exists for this branch
+    const existingMainWarehouse = await Warehouse.findOne({
+      tenant_id: tenantId,
+      assignedBranches: branchId,
+      type: 'MAIN',
+      deleted_at: null
+    }).session(session);
+
+    // Create MAIN warehouse if it doesn't exist (this is the default warehouse)
+    if (!existingMainWarehouse) {
+      const mainWarehouse = new Warehouse({
+        tenant_id: tenantId,
+        name: `${branchName} - Main Warehouse`,
+        type: 'MAIN',
+        status: 'ACTIVE',
+        assignedBranches: [branchId]
+      });
+      await mainWarehouse.save({ session });
+      console.log(`✅ Created default MAIN warehouse for branch: ${branchName}`);
+    }
+
+    await session.commitTransaction();
+  } catch (error: any) {
+    await session.abortTransaction();
+    console.error('Error creating default warehouse:', error);
+    throw error;
+  } finally {
+    session.endSession();
   }
 } 

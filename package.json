@@ -9,6 +9,8 @@
     "dev": "nodemon",
     "seed": "npx ts-node src/seeds/index.ts",
     "seed:clear": "npx ts-node src/seeds/index.ts --clear",
+    "seed:permissions": "npx ts-node src/seeds/seedPermissionsOnly.ts",
+    "seed:roles": "npx ts-node src/seeds/updateRolesWithWarehousePermissions.ts",
     "migrate:services": "npx ts-node src/migrations/addClinicIdToServices.ts",
     "migrate:departments": "npx ts-node src/migrations/addClinicIdToDepartments.ts",
     "migrate:inventory": "npx ts-node src/migrations/addClinicIdToInventory.ts",

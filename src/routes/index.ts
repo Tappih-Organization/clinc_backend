@@ -39,6 +39,7 @@ import expenseRoutes from './expenseRoutes';
 import performanceRoutes from './performanceRoutes';
 import permissionRoutes from './permissionRoutes';
 import roleRoutes from './roleRoutes';
+import warehouseRoutes from './warehouseRoutes';
 import { getConnectionState, isConnectionHealthy } from '../config/database';
 import autoPermissionGuard from '../middleware/autoPermission';
 
@@ -100,6 +101,7 @@ router.use('/expenses', expenseRoutes);
 router.use('/performance', performanceRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/roles', roleRoutes);
+router.use('/warehouses', warehouseRoutes);
 
 // Basic health check route
 router.get('/health', (req, res) => {
