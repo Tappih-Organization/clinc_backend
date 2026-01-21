@@ -19,6 +19,7 @@
     "migrate:tenants": "npx ts-node src/migrations/createTenantsTable.ts",
     "migrate:add-tenant-id": "npx ts-node src/migrations/addTenantIdToAllModels.ts",
     "migrate:add-tenant-id-clinic-based": "npx ts-node src/migrations/addTenantIdToAllModels.ts --clinic-based",
+    "migrate:fix-prescription-index": "npx ts-node src/migrations/fixPrescriptionIndex.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

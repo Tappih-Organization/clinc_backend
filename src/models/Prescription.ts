@@ -50,7 +50,7 @@ const MedicationSchema: Schema = new Schema({
   },
   instructions: {
     type: String,
-    required: [true, 'Instructions are required'],
+    default: '',
     trim: true
   },
   quantity: {
@@ -64,8 +64,7 @@ const PrescriptionSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   patient_id: {
     type: Schema.Types.ObjectId,
@@ -89,7 +88,6 @@ const PrescriptionSchema: Schema = new Schema({
   prescription_id: {
     type: String,
     required: [true, 'Prescription ID is required'],
-    unique: true,
     trim: true
   },
   diagnosis: {
@@ -132,7 +130,8 @@ const PrescriptionSchema: Schema = new Schema({
 });
 
 // Create indexes for better search performance with tenant awareness
-// Note: prescription_id already has unique index from schema definition
+// Compound unique index for prescription_id per tenant+clinic combination
+PrescriptionSchema.index({ tenant_id: 1, clinic_id: 1, prescription_id: 1 }, { unique: true });
 PrescriptionSchema.index({ tenant_id: 1 });
 PrescriptionSchema.index({ tenant_id: 1, patient_id: 1 });
 PrescriptionSchema.index({ tenant_id: 1, doctor_id: 1 });

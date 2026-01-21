@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
+import mongoose from 'mongoose';
 import { Prescription } from '../models';
 import { AuthRequest } from '../types/express';
 import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData } from '../middleware/auth';
@@ -17,20 +18,93 @@ export class PrescriptionController {
         return;
       }
 
+      // Convert clinic_id to ObjectId once
+      const clinicId = new mongoose.Types.ObjectId(req.clinic_id!);
+
       // Generate prescription ID if not provided
+      // Include tenant_id and clinic_id in the count to ensure uniqueness per tenant+clinic
       if (!req.body.prescription_id) {
-        const count = await Prescription.countDocuments({ clinic_id: req.clinic_id });
-        req.body.prescription_id = `RX-${String(count + 1).padStart(3, '0')}`;
+        const tenantFilter = getTenantScopedFilter(req, { clinic_id: clinicId });
+        
+        // Get the maximum prescription_id number for this tenant+clinic
+        const maxPrescription = await Prescription.findOne(tenantFilter)
+          .sort({ prescription_id: -1 })
+          .select('prescription_id');
+        
+        let nextNumber = 1;
+        if (maxPrescription && maxPrescription.prescription_id) {
+          // Extract number from prescription_id (e.g., "RX-001" -> 1)
+          const match = maxPrescription.prescription_id.match(/RX-(\d+)/);
+          if (match) {
+            nextNumber = parseInt(match[1], 10) + 1;
+          }
+        }
+        
+        let prescriptionId = `RX-${String(nextNumber).padStart(3, '0')}`;
+        
+        // Check if prescription_id already exists within this tenant+clinic (handle race conditions)
+        let existingPrescription = await Prescription.findOne({
+          ...tenantFilter,
+          prescription_id: prescriptionId
+        });
+        
+        let attempts = 0;
+        while (existingPrescription && attempts < 20) {
+          nextNumber++;
+          prescriptionId = `RX-${String(nextNumber).padStart(3, '0')}`;
+          existingPrescription = await Prescription.findOne({
+            ...tenantFilter,
+            prescription_id: prescriptionId
+          });
+          attempts++;
+        }
+        
+        if (existingPrescription) {
+          // If still exists after 20 attempts, use timestamp-based ID
+          const timestamp = Date.now().toString().slice(-6);
+          prescriptionId = `RX-${timestamp}`;
+        }
+        
+        req.body.prescription_id = prescriptionId;
       }
 
       // Add tenant_id to prescription data with validation
       const prescriptionData = addTenantToData(req, {
         ...req.body,
-        clinic_id: req.clinic_id
+        clinic_id: clinicId
       });
 
-      const prescription = new Prescription(prescriptionData);
-      await prescription.save();
+      // Try to save, with retry logic for duplicate key errors
+      let prescription: any;
+      let saveAttempts = 0;
+      const maxSaveAttempts = 5;
+      
+      while (saveAttempts < maxSaveAttempts) {
+        try {
+          prescription = new Prescription(prescriptionData);
+          await prescription.save();
+          break; // Success, exit loop
+        } catch (saveError: any) {
+          // If duplicate key error and we haven't exceeded max attempts, regenerate ID
+          if ((saveError.code === 11000 || saveError.name === 'MongoServerError') && 
+              saveError.keyPattern && (saveError.keyPattern.prescription_id || 
+              (saveError.keyPattern.tenant_id && saveError.keyPattern.clinic_id && saveError.keyPattern.prescription_id)) && 
+              saveAttempts < maxSaveAttempts - 1) {
+            saveAttempts++;
+            // Regenerate prescription_id with timestamp to ensure uniqueness
+            const timestamp = Date.now().toString().slice(-6);
+            const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+            prescriptionData.prescription_id = `RX-${timestamp}${randomSuffix}`;
+            continue;
+          }
+          // Re-throw if not a duplicate key error or max attempts reached
+          throw saveError;
+        }
+      }
+
+      if (!prescription) {
+        throw new Error('Failed to create prescription after multiple attempts');
+      }
 
       // Populate patient and doctor information
       await prescription.populate([
@@ -53,8 +127,40 @@ export class PrescriptionController {
         message: error.message,
         stack: error.stack,
         code: error.code,
-        errors: error.errors
+        errors: error.errors,
+        keyPattern: error.keyPattern,
+        keyValue: error.keyValue
       });
+
+      // Handle duplicate key error (unique index violation)
+      if (error.code === 11000 || error.name === 'MongoServerError') {
+        const duplicateField = error.keyPattern ? Object.keys(error.keyPattern)[0] : 'unknown';
+        res.status(409).json({
+          success: false,
+          message: `Duplicate ${duplicateField} detected. Please try again.`,
+          error: {
+            name: error.name,
+            message: error.message,
+            duplicateField: duplicateField,
+            duplicateValue: error.keyValue ? error.keyValue[duplicateField] : null
+          }
+        });
+        return;
+      }
+
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          error: {
+            name: error.name,
+            message: error.message,
+            errors: error.errors
+          }
+        });
+        return;
+      }
 
       // Return detailed error in development
       res.status(500).json({

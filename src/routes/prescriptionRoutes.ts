@@ -27,7 +27,7 @@ const prescriptionValidation = [
   body('medications.*.dosage').notEmpty().withMessage('Dosage is required'),
   body('medications.*.frequency').notEmpty().withMessage('Frequency is required'),
   body('medications.*.duration').notEmpty().withMessage('Duration is required'),
-  body('medications.*.instructions').notEmpty().withMessage('Instructions are required'),
+  body('medications.*.instructions').optional().trim(),
   body('medications.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be a positive integer'),
   body('status').optional().isIn(['active', 'completed', 'pending', 'cancelled', 'expired']).withMessage('Invalid status'),
   body('follow_up_date').optional().isISO8601().withMessage('Please provide a valid follow-up date'),
