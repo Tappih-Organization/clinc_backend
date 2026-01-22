@@ -147,10 +147,10 @@ export class UserController {
 
       // Generate JWT token (no clinic context yet - will be added after clinic selection)
       const token = jwt.sign(
-        { 
-          id: user._id, 
+        {
+          id: user._id,
           email: user.email,
-          role: user.role 
+          role: user.role
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
@@ -221,9 +221,9 @@ export class UserController {
       }
 
       const allowedUpdates = [
-        'first_name', 
-        'last_name', 
-        'phone', 
+        'first_name',
+        'last_name',
+        'phone',
         'base_currency',
         'address',
         'bio',
@@ -338,7 +338,7 @@ export class UserController {
       const limit = parseInt(req.query.limit as string) || 50;
       const skip = (page - 1) * limit;
 
-      const filter: any = { 
+      const filter: any = {
         role: 'doctor',
         is_active: true
       };
@@ -378,7 +378,7 @@ export class UserController {
       const limit = parseInt(req.query.limit as string) || 50;
       const skip = (page - 1) * limit;
 
-      const filter: any = { 
+      const filter: any = {
         role: 'nurse',
         is_active: true
       };
@@ -422,17 +422,17 @@ export class UserController {
       // For staff management, we want tenant and clinic-scoped filtering even for super_admin users
       // This ensures each tenant only sees their own staff from their current clinic context
       const filter: any = {};
-      
+
       // Always apply tenant filtering (even for super_admin)
       if (req.tenant_id) {
         filter.tenant_id = req.tenant_id;
       }
-      
+
       // Add clinic filtering if clinic context is available
       if (req.clinic_id) {
         filter.clinic_id = req.clinic_id;
       }
-      
+
       if (req.query.role) {
         filter.role = req.query.role;
       }
@@ -473,17 +473,17 @@ export class UserController {
     try {
       // For admin management, we want tenant and clinic-scoped filtering even for super_admin users
       const filter: any = { is_active: true };
-      
+
       // Always apply tenant filtering (even for super_admin)
       if (req.tenant_id) {
         filter.tenant_id = req.tenant_id;
       }
-      
+
       // Add clinic filtering if clinic context is available
       if (req.clinic_id) {
         filter.clinic_id = req.clinic_id;
       }
-      
+
       const users = await User.find(filter)
         .select('first_name last_name email role phone is_active created_at')
         .sort({ first_name: 1, last_name: 1 });
@@ -520,7 +520,7 @@ export class UserController {
       if (req.query.is_active !== undefined) {
         filter.is_active = req.query.is_active === 'true';
       }
-      
+
       // Filter by tenant_id if provided (for multi-tenant support)
       if (req.query.tenant_id) {
         filter.tenant_id = req.query.tenant_id;
@@ -560,20 +560,20 @@ export class UserController {
   static async getUserById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      
+
       // For user lookup, we want tenant and clinic-scoped filtering even for super_admin users
       const filter: any = { _id: id };
-      
+
       // Always apply tenant filtering (even for super_admin)
       if (req.tenant_id) {
         filter.tenant_id = req.tenant_id;
       }
-      
+
       // Add clinic filtering if clinic context is available
       if (req.clinic_id) {
         filter.clinic_id = req.clinic_id;
       }
-      
+
       const user = await User.findOne(filter);
 
       if (!user) {
@@ -795,7 +795,7 @@ export class UserController {
 
       // Upload new avatar to S3
       const avatarUrl = await S3Service.uploadFile(req.file, 'avatars');
-      
+
       // Update user's avatar in database
       const user = await User.findByIdAndUpdate(
         req.user?.id,
@@ -806,9 +806,9 @@ export class UserController {
       res.json({
         success: true,
         message: 'Avatar uploaded successfully',
-        data: { 
+        data: {
           avatar: avatarUrl,
-          user 
+          user
         }
       });
     } catch (error) {
@@ -889,7 +889,7 @@ export class UserController {
 
       // Validate schedule structure
       const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      
+
       if (!schedule || typeof schedule !== 'object') {
         res.status(400).json({
           success: false,
@@ -909,7 +909,7 @@ export class UserController {
         }
 
         const daySchedule = schedule[day];
-        
+
         if (typeof daySchedule.isWorking !== 'boolean') {
           res.status(400).json({
             success: false,
@@ -921,7 +921,7 @@ export class UserController {
         // If working day, validate time format
         if (daySchedule.isWorking) {
           const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-          
+
           if (!timeRegex.test(daySchedule.start)) {
             res.status(400).json({
               success: false,
@@ -941,7 +941,7 @@ export class UserController {
           // Validate that end time is after start time
           const startMinutes = timeToMinutes(daySchedule.start);
           const endMinutes = timeToMinutes(daySchedule.end);
-          
+
           if (endMinutes <= startMinutes) {
             res.status(400).json({
               success: false,
@@ -954,7 +954,7 @@ export class UserController {
 
       // Apply tenant validation for user update
       const userFilter = getTenantScopedFilter(req, { _id: id });
-      
+
       // Update user's schedule
       const user = await User.findOneAndUpdate(
         userFilter,
