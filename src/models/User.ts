@@ -159,10 +159,10 @@ const UserSchema: Schema = new Schema({
     trim: true,
     maxlength: [100, 'License number cannot exceed 100 characters']
   },
-  department: {
-    type: String,
-    trim: true,
-    maxlength: [100, 'Department cannot exceed 100 characters']
+  department_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Department',
+    required: false
   },
   avatar: {
     type: String,
