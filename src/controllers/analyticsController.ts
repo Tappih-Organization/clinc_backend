@@ -202,6 +202,16 @@ export class AnalyticsController {
 
       // Calculate percentages and add colors
       const total = appointmentStats.reduce((sum, stat) => sum + stat.count, 0);
+      
+      // If no appointments found, return empty array
+      if (total === 0 || appointmentStats.length === 0) {
+        res.json({
+          success: true,
+          data: []
+        });
+        return;
+      }
+
       const colors = {
         'completed': '#10B981',
         'scheduled': '#3B82F6', 
@@ -210,8 +220,8 @@ export class AnalyticsController {
       };
 
       const formattedData = appointmentStats.map(stat => ({
-        name: stat._id.charAt(0).toUpperCase() + stat._id.slice(1),
-        value: Math.round((stat.count / total) * 100),
+        name: stat._id ? (stat._id.charAt(0).toUpperCase() + stat._id.slice(1)) : 'Unknown',
+        value: total > 0 ? Math.round((stat.count / total) * 100) : 0,
         count: stat.count,
         color: colors[stat._id as keyof typeof colors] || '#6B7280'
       }));

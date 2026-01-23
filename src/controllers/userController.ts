@@ -878,8 +878,8 @@ export class UserController {
       const { id } = req.params;
       const { schedule } = req.body;
 
-      // Check authorization - admin can update any user's schedule, users can update their own
-      if (req.user?.role !== 'admin' && req.user?.id !== id) {
+      // Check authorization - admin or super_admin can update any user's schedule, users can update their own
+      if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.id !== id) {
         res.status(403).json({
           success: false,
           message: 'Access denied. You can only update your own schedule or need admin privileges.'
