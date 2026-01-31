@@ -56,6 +56,13 @@ export interface ISettings extends Document {
     }>;
     /** Wawp WhatsApp API credentials (per clinic or use env WAWP_*) */
     wawp?: { instanceId: string; accessToken: string };
+    googleCalendar?: {
+      enabled: boolean;
+      clientId: string;
+      clientSecret: string;
+      refreshToken?: string;
+      calendarId?: string;
+    };
   };
   security: {
     twoFactorAuth: boolean;
@@ -228,9 +235,18 @@ const settingsSchema = new Schema<ISettings>({
       default: true
     },
     triggers: { type: Schema.Types.Mixed, default: undefined },
+    /** Wawp WhatsApp API credentials - saved in DB */
     wawp: {
-      instanceId: { type: String, trim: true },
-      accessToken: { type: String, trim: true }
+      instanceId: { type: String, trim: true, default: '' },
+      accessToken: { type: String, trim: true, default: '' }
+    },
+    /** Google Calendar sync - OAuth2 credentials */
+    googleCalendar: {
+      enabled: { type: Boolean, default: false },
+      clientId: { type: String, default: '' },
+      clientSecret: { type: String, default: '' },
+      refreshToken: { type: String, default: '' },
+      calendarId: { type: String, default: 'primary' }
     }
   },
   security: {

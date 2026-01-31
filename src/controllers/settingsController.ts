@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import Settings, { ISettings } from '../models/Settings';
 import Clinic from '../models/Clinic';
 import { AuthRequest } from '../types/express';
+import { sendWawpMessage, phoneToChatId } from '../utils/wawp';
+import {
+  getAuthUrl as buildGoogleCalendarAuthUrl,
+  getRefreshTokenFromCode,
+} from '../utils/googleCalendarService';
 
 /**
  * @swagger
@@ -222,13 +227,14 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // 2️⃣ Get settings
-    let settings = await Settings.findOne({ clinicId });
+    // 2️⃣ Get settings (clinicId may be ObjectId; Settings uses string)
+    const clinicIdStr = String(clinicId);
+    let settings = await Settings.findOne({ clinicId: clinicIdStr });
 
     // 3️⃣ Create default settings from clinic
     if (!settings) {
       settings = new Settings({
-        clinicId,
+        clinicId: clinicIdStr,
 
         clinic: {
           name: clinic.name,
@@ -304,12 +310,33 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
       });
 
       await settings.save();
-      console.log(`✅ Settings created from clinic ${clinicId}`);
+      console.log(`✅ Settings created from clinic ${clinicIdStr}`);
+    }
+
+    // 4️⃣ Notifications (Wawp + triggers) are at main-clinic level: sub-branches inherit from main
+    let data = settings.toJSON();
+    const isSubClinic = clinic.parent_clinic_id != null;
+    if (isSubClinic) {
+      const mainClinicId = String(clinic.parent_clinic_id);
+      const mainSettings = await Settings.findOne({ clinicId: mainClinicId }).lean();
+      if (mainSettings?.notifications) {
+        data = { ...data, notifications: mainSettings.notifications };
+      }
+    }
+
+    // Sanitize Google Calendar: do not send refreshToken/clientSecret/clientId (credentials are in ENV); add connected flag
+    if (data.notifications?.googleCalendar) {
+      const gc = data.notifications.googleCalendar as any;
+      (data.notifications as any).googleCalendar = {
+        enabled: gc.enabled,
+        calendarId: gc.calendarId || 'primary',
+        connected: !!(gc.refreshToken && gc.refreshToken.trim())
+      };
     }
 
     return res.json({
       success: true,
-      data: settings.toJSON()
+      data
     });
 
   } catch (error) {
@@ -452,16 +479,20 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const clinicIdStr = String(clinicId);
     const { clinic, workingHours, financial, notifications, security } = req.body;
 
     // Find existing settings
-    const existingSettings = await Settings.findOne({ clinicId });
+    const existingSettings = await Settings.findOne({ clinicId: clinicIdStr });
     if (!existingSettings) {
       return res.status(404).json({
         success: false,
         message: 'Settings not found for this clinic'
       });
     }
+
+    const currentClinic = await Clinic.findById(clinicId).select('parent_clinic_id is_main_clinic').lean();
+    const isMainClinic = currentClinic?.is_main_clinic === true;
 
     // Merge clinic data (keep old values if not provided)
     if (clinic) {
@@ -487,10 +518,28 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       };
     }
     if (notifications) {
-      existingSettings.notifications = {
-        ...existingSettings.notifications,
-        ...notifications
-      };
+      const merged = { ...existingSettings.notifications, ...notifications };
+      if (notifications.googleCalendar !== undefined) {
+        const existingGc = (existingSettings.notifications as any)?.googleCalendar || {};
+        merged.googleCalendar = { ...existingGc, ...notifications.googleCalendar };
+      }
+      existingSettings.notifications = merged;
+      // Notifications (Wawp + triggers) are defined at main-clinic level: propagate to all sub-clinics
+      if (isMainClinic) {
+        const subClinics = await Clinic.find({ parent_clinic_id: clinicId }).select('_id').lean();
+        for (const sub of subClinics) {
+          const subId = String(sub._id);
+          const subSettings = await Settings.findOne({ clinicId: subId });
+          if (subSettings) {
+            subSettings.notifications = { ...subSettings.notifications, ...notifications };
+            subSettings.updatedAt = new Date();
+            await subSettings.save();
+          }
+        }
+        if (subClinics.length > 0) {
+          console.log(`✅ Notifications propagated to ${subClinics.length} sub-clinic(s)`);
+        }
+      }
     }
     if (security) {
       existingSettings.security = {
@@ -569,7 +618,182 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
 
 
+/**
+ * POST /api/settings/whatsapp-test
+ * Send a test WhatsApp message using Wawp credentials from body.
+ */
+export const sendWhatsAppTestMessage = async (req: AuthRequest, res: Response) => {
+  try {
+    const { instanceId, accessToken, phoneNumber, message } = req.body;
+
+    if (!instanceId?.trim() || !accessToken?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Instance ID and Access Token are required',
+      });
+    }
+    if (!phoneNumber?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required',
+      });
+    }
+
+    const chatId = phoneToChatId(phoneNumber);
+    if (!chatId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number',
+      });
+    }
+
+    const text =
+      message?.trim() ||
+      (req.headers['accept-language']?.includes('ar')
+        ? 'رساله تجريبيه من نظام تابع'
+        : 'Test message from Tappih system');
+
+    const result = await sendWawpMessage(
+      instanceId.trim(),
+      accessToken.trim(),
+      chatId,
+      text
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error || 'Failed to send message',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Test message sent successfully',
+    });
+  } catch (error) {
+    console.error('Error sending WhatsApp test message:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send test message',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+/**
+ * GET /api/settings/google-calendar/auth-url
+ * Returns Google OAuth2 auth URL. Frontend redirects user there; after consent, Google redirects to callback with ?code=...
+ * Query: (none) - uses X-Clinic-Id and current user's clinic
+ */
+export const getGoogleCalendarAuthUrl = async (req: AuthRequest, res: Response) => {
+  try {
+    const clinicId = req.clinic_id;
+    if (!clinicId) {
+      return res.status(400).json({ success: false, message: 'Clinic context is required' });
+    }
+    const clinicIdStr = String(clinicId);
+    const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim();
+    const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google Calendar credentials not configured. Set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET in .env',
+      });
+    }
+    const base = process.env.BACKEND_URL || process.env.GOOGLE_CALENDAR_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}`;
+    const redirectUri = `${base.replace(/\/$/, '')}/api/settings/google-calendar/callback`;
+    const authUrl = buildGoogleCalendarAuthUrl(clientId, clientSecret, redirectUri, clinicIdStr);
+    return res.json({ success: true, authUrl });
+  } catch (error) {
+    console.error('Error building Google Calendar auth URL:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to build auth URL',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+/**
+ * GET /api/settings/google-calendar/callback?code=...&state=clinicId
+ * Called by Google after user authorizes. Exchanges code for refresh_token and saves to settings.
+ */
+export const googleCalendarCallback = async (req: Request, res: Response) => {
+  try {
+    const { code, state: clinicId } = req.query;
+    if (!code || typeof code !== 'string' || !clinicId || typeof clinicId !== 'string') {
+      return res.status(400).send('Missing code or state. Please try connecting again from Settings.');
+    }
+    const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim();
+    const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      return res.status(500).send('Google Calendar credentials not configured on server.');
+    }
+    const base = process.env.BACKEND_URL || process.env.GOOGLE_CALENDAR_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}`;
+    const redirectUri = `${base.replace(/\/$/, '')}/api/settings/google-calendar/callback`;
+    const refreshToken = await getRefreshTokenFromCode(clientId, clientSecret, redirectUri, code);
+    await Settings.findOneAndUpdate(
+      { clinicId },
+      {
+        $set: {
+          'notifications.googleCalendar.refreshToken': refreshToken,
+          'notifications.googleCalendar.enabled': true,
+          updatedAt: new Date(),
+        },
+      }
+    );
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    return res.redirect(`${frontendUrl}/dashboard/settings/applications?google_calendar=connected`);
+  } catch (error) {
+    console.error('Google Calendar callback error:', error);
+    return res.status(500).send('Failed to connect Google Calendar. Please try again.');
+  }
+};
+
+/**
+ * Disconnect Google Calendar - removes refresh token and disables sync
+ */
+export const disconnectGoogleCalendar = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    const clinicId = req.clinic_id;
+    if (!clinicId) {
+      return res.status(400).json({ success: false, message: 'Clinic context required' });
+    }
+
+    const clinicIdStr = String(clinicId);
+    const settings = await Settings.findOne({ clinicId: clinicIdStr });
+    if (!settings) {
+      return res.status(404).json({ success: false, message: 'Settings not found' });
+    }
+
+    // Clear Google Calendar connection
+    settings.notifications = settings.notifications || {};
+    settings.notifications.googleCalendar = {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+      refreshToken: '',
+      calendarId: '',
+    };
+
+    await settings.save();
+
+    return res.json({
+      success: true,
+      message: 'Google Calendar disconnected successfully',
+    });
+  } catch (error) {
+    console.error('Disconnect Google Calendar error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to disconnect Google Calendar' });
+  }
+};
+
 export default {
   getSettings,
   updateSettings,
+  sendWhatsAppTestMessage,
+  getGoogleCalendarAuthUrl,
+  googleCalendarCallback,
+  disconnectGoogleCalendar,
 }; 

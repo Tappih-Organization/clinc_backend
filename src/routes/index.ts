@@ -48,11 +48,15 @@ const router = Router();
 // ===== PUBLIC ROUTES (no auth required) =====
 // Import payment controller for public endpoint
 import { PaymentController } from '../controllers/paymentController';
+import { googleCalendarCallback } from '../controllers/settingsController';
 
 // Verify payment by session ID (for Stripe success page - must be public)
 router.get('/payments/verify-session/:session_id', (req: any, res: any) => {
   PaymentController.verifyPaymentBySessionId(req, res);
 });
+
+// Google Calendar OAuth callback (called by Google after user authorizes - no auth)
+router.get('/settings/google-calendar/callback', googleCalendarCallback);
 
 // Public tenant routes (for tenant selection and validation)
 router.use('/public/tenants', publicTenantRoutes);

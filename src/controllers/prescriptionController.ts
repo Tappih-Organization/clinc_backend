@@ -108,28 +108,46 @@ export class PrescriptionController {
         throw new Error('Failed to create prescription after multiple attempts');
       }
 
-      // Populate patient and doctor information
+      // Populate patient and doctor information (include phone for notification)
       await prescription.populate([
         { path: 'patient_id', select: 'first_name last_name date_of_birth gender phone' },
         { path: 'doctor_id', select: 'first_name last_name' },
         { path: 'appointment_id', select: 'appointment_date' }
       ]);
 
-      const clinicId = String(req.clinic_id);
+      // Build full prescription details text for notification tag {{prescription_details}}
+      const medLines = (prescription.medications || []).map((m: any, i: number) => {
+        const n = i + 1;
+        return `${n}. ${m.name} - الجرعة: ${m.dosage}، التكرار: ${m.frequency}، المدة: ${m.duration}${m.instructions ? `، تعليمات: ${m.instructions}` : ''} (الكمية: ${m.quantity})`;
+      });
+      const prescriptionDetailsText = [
+        `التشخيص: ${prescription.diagnosis || '-'}`,
+        `الأدوية:\n${medLines.join('\n')}`,
+        prescription.notes ? `ملاحظات: ${prescription.notes}` : '',
+      ].filter(Boolean).join('\n\n');
+
+      const clinicIdStr = String(req.clinic_id);
       const patient: any = prescription.patient_id;
       const doctor: any = prescription.doctor_id;
       const phone = patient?.phone;
-      if (phone && clinicId) {
+      if (phone && clinicIdStr) {
         const clinic = await Clinic.findById(req.clinic_id).select('name').lean();
-        sendNotification('new_prescription', clinicId, {
+        sendNotification('new_prescription', clinicIdStr, {
           recipientPhone: phone,
           payload: {
             patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
             patient_phone: phone,
             doctor_name: doctor ? `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() : '',
-            clinic_name: clinic?.name || '',
+            clinic_name: (clinic as any)?.name || '',
+            prescription_id: prescription.prescription_id || '',
+            diagnosis: prescription.diagnosis || '',
+            prescription_details: prescriptionDetailsText,
           },
           lang: 'ar',
+        }).then((r) => {
+          if (r.whatsapp && !r.whatsapp.success) {
+            console.error('[notification] new_prescription failed:', r.whatsapp.error);
+          }
         }).catch((err) => console.error('[notification] new_prescription:', err));
       }
 

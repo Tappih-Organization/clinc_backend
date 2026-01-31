@@ -13,6 +13,8 @@ export interface IAppointment extends Document {
   type: string;
   reason?: string;
   notes: string;
+  /** Google Calendar event ID for sync (optional) */
+  google_calendar_event_id?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -137,6 +139,11 @@ const AppointmentSchema: Schema = new Schema({
     type: String,
     trim: true,
     maxlength: [1000, 'Notes cannot exceed 1000 characters']
+  },
+  google_calendar_event_id: {
+    type: String,
+    trim: true,
+    default: undefined
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

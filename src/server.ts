@@ -11,6 +11,7 @@ import connectDB from './config/database';
 import routes from './routes';
 import publicRoutes from './routes/publicRoutes';
 import swaggerSpecs from './config/swagger';
+import { startAppointmentReminderJob } from './jobs/appointmentReminderJob';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -264,6 +265,7 @@ async function initializeServer() {
       console.log(`💾 Database Health: http://localhost:${PORT}/api/health/database`);
       console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('===================================');
+      startAppointmentReminderJob();
     });
 
     // Handle server errors

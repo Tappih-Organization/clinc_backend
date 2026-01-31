@@ -1,11 +1,12 @@
 /**
  * Notification service: sends notifications via Wawp WhatsApp API
  * using dynamic templates from Settings (triggers).
+ * Notifications (Wawp + triggers) are at main-clinic level: sub-branches use main clinic settings.
  */
 
 import Settings from '../models/Settings';
-
-const WAWP_SEND_URL = 'https://wawp.net/wp-json/awp/v1/send';
+import Clinic from '../models/Clinic';
+import { sendWawpMessage, phoneToChatId as wawpPhoneToChatId } from './wawp';
 
 export type TriggerId =
   | 'new_appointment'
@@ -30,6 +31,10 @@ export interface NotificationPayload {
   payment_amount?: string;
   service_name?: string;
   test_name?: string;
+  /** Prescription: full formatted details (diagnosis + medications + notes) */
+  prescription_details?: string;
+  prescription_id?: string;
+  diagnosis?: string;
   [key: string]: string | undefined;
 }
 
@@ -47,71 +52,34 @@ export function fillTemplate(template: string, payload: NotificationPayload): st
   return result;
 }
 
-/**
- * Normalize phone to Wawp chatId: digits only + @c.us (e.g. 966501234567@c.us).
- */
-export function phoneToChatId(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return digits ? `${digits}@c.us` : '';
-}
+/** Re-export for callers that expect it from here */
+export const phoneToChatId = wawpPhoneToChatId;
 
-/**
- * Send a text message via Wawp WhatsApp API.
- * Uses WAWP_INSTANCE_ID and WAWP_ACCESS_TOKEN from env if wawpConfig not provided.
- */
-export async function sendWawpWhatsApp(
-  chatId: string,
-  message: string,
-  wawpConfig?: { instanceId: string; accessToken: string }
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const instanceId = wawpConfig?.instanceId || process.env.WAWP_INSTANCE_ID;
-  const accessToken = wawpConfig?.accessToken || process.env.WAWP_ACCESS_TOKEN;
-
-  if (!instanceId || !accessToken) {
-    console.warn('[notificationService] Wawp not configured: missing instanceId or accessToken');
-    return { success: false, error: 'Wawp not configured' };
-  }
-
-  if (!chatId || !message) {
-    return { success: false, error: 'chatId and message are required' };
-  }
-
-  const url = new URL(WAWP_SEND_URL);
-  url.searchParams.set('instance_id', instanceId);
-  url.searchParams.set('access_token', accessToken);
-  url.searchParams.set('chatId', chatId);
-  url.searchParams.set('message', message);
-
-  try {
-    const res = await fetch(url.toString(), { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      console.error('[notificationService] Wawp API error:', res.status, data);
-      return {
-        success: false,
-        error: (data as any)?.message || `HTTP ${res.status}`,
-      };
-    }
-
-    const messageId = (data as any)?._data?.id?._serialized ?? (data as any)?.id;
-    return { success: true, messageId };
-  } catch (err: any) {
-    console.error('[notificationService] Wawp request failed:', err?.message);
-    return { success: false, error: err?.message || 'Request failed' };
-  }
-}
-
-/** Default WhatsApp template for new_appointment when not configured in settings */
+/** Default WhatsApp template for new_appointment only when trigger is not in settings at all */
 const DEFAULT_NEW_APPOINTMENT_TEMPLATE_AR =
   'مرحباً {{patient_name}} 👋\nموعدك عندنا بتاريخ {{appointment_date}} الساعة {{appointment_time}}\nالعيادة: {{clinic_name}}';
 const DEFAULT_NEW_APPOINTMENT_TEMPLATE_EN =
   'Hello {{patient_name}} 👋\nYour appointment is on {{appointment_date}} at {{appointment_time}}\nClinic: {{clinic_name}}';
 
 /**
- * Send notification for a trigger: loads clinic settings, gets template,
+ * Get WhatsApp template string from trigger config (from settings).
+ * Supports: templates.whatsapp = { ar: string, en: string } or a single string.
+ */
+function getWhatsAppTemplateFromConfig(triggerConfig: any, lang: 'ar' | 'en'): string | undefined {
+  if (!triggerConfig?.templates) return undefined;
+  const whatsapp = triggerConfig.templates.whatsapp;
+  if (typeof whatsapp === 'string' && whatsapp.trim()) return whatsapp.trim();
+  if (whatsapp && typeof whatsapp === 'object') {
+    const text = whatsapp[lang] ?? whatsapp.ar ?? whatsapp.en;
+    return typeof text === 'string' && text.trim() ? text.trim() : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Send notification for a trigger: loads clinic settings, gets template from settings (dynamic),
  * fills with payload, sends via WhatsApp if enabled.
- * For new_appointment, uses default template if trigger not configured but Wawp is.
+ * Template is always taken from settings when the trigger is configured.
  */
 export async function sendNotification(
   triggerId: TriggerId,
@@ -126,26 +94,36 @@ export async function sendNotification(
   const result: { whatsapp?: { success: boolean; error?: string } } = {};
   const clinicIdStr = String(clinicId);
 
-  const settings = await Settings.findOne({ clinicId: clinicIdStr }).lean();
+  // Notifications (Wawp + triggers) are at main-clinic level: sub-branches inherit from main
+  let effectiveClinicId = clinicIdStr;
+  const clinicDoc = await Clinic.findById(clinicIdStr).select('parent_clinic_id').lean();
+  if (clinicDoc?.parent_clinic_id) {
+    effectiveClinicId = String(clinicDoc.parent_clinic_id);
+  }
+
+  const settings = await Settings.findOne({ clinicId: effectiveClinicId }).lean();
   if (!settings?.notifications) {
-    console.warn('[notificationService] No settings or notifications for clinic:', clinicIdStr);
+    console.warn('[notificationService] No settings or notifications for clinic (effective):', effectiveClinicId);
     return result;
   }
 
   const triggers = (settings.notifications as any)?.triggers;
   const triggerConfig = triggers?.[triggerId];
   const wawpConfig = (settings.notifications as any)?.wawp;
-  const hasWawp = !!(wawpConfig?.instanceId && wawpConfig?.accessToken) ||
-    !!(process.env.WAWP_INSTANCE_ID && process.env.WAWP_ACCESS_TOKEN);
+  const instanceId = wawpConfig?.instanceId || process.env.WAWP_INSTANCE_ID;
+  const accessToken = wawpConfig?.accessToken || process.env.WAWP_ACCESS_TOKEN;
+  const hasWawp = !!(instanceId?.trim() && accessToken?.trim());
 
+  // Dynamic template from settings: use template defined in UI for this trigger
   let template: string | undefined;
-  if (triggerConfig?.enabled && triggerConfig?.channels?.whatsapp) {
-    const templates = triggerConfig.templates?.whatsapp;
-    template = templates?.[lang] || templates?.ar || templates?.en;
+  const isEnabled = triggerConfig?.enabled === true;
+  const whatsappChannelOn = (triggerConfig as any)?.channels?.whatsapp === true;
+  if (isEnabled && whatsappChannelOn) {
+    template = getWhatsAppTemplateFromConfig(triggerConfig, lang);
   }
 
-  // Fallback: for new_appointment, send with default template if Wawp is configured but trigger not set
-  if (!template && triggerId === 'new_appointment' && hasWawp) {
+  // Fallback: only when this trigger is not configured at all (no trigger in settings)
+  if (!template && !triggerConfig && triggerId === 'new_appointment' && hasWawp) {
     template = lang === 'en' ? DEFAULT_NEW_APPOINTMENT_TEMPLATE_EN : DEFAULT_NEW_APPOINTMENT_TEMPLATE_AR;
     console.log('[notificationService] Using default new_appointment template (trigger not in settings)');
   }
@@ -153,16 +131,16 @@ export async function sendNotification(
   if (!template) {
     if (!triggerConfig) {
       console.warn('[notificationService] Trigger not configured:', triggerId, 'clinic:', clinicIdStr);
-    } else if (!triggerConfig.enabled || !triggerConfig.channels?.whatsapp) {
+    } else if (!isEnabled || !whatsappChannelOn) {
       console.warn('[notificationService] Trigger disabled or WhatsApp channel off:', triggerId);
     } else {
-      console.warn('[notificationService] No WhatsApp template for trigger:', triggerId);
+      console.warn('[notificationService] No WhatsApp template for trigger (set template in Settings → Notifications):', triggerId);
     }
     return result;
   }
 
   const message = fillTemplate(template, payload);
-  const chatId = phoneToChatId(recipientPhone);
+  const chatId = wawpPhoneToChatId(recipientPhone);
   if (!chatId) {
     console.warn('[notificationService] Invalid phone number:', recipientPhone);
     result.whatsapp = { success: false, error: 'Invalid phone number' };
@@ -175,7 +153,7 @@ export async function sendNotification(
     return result;
   }
 
-  const sendResult = await sendWawpWhatsApp(chatId, message, wawpConfig);
+  const sendResult = await sendWawpMessage(instanceId!, accessToken!, chatId, message);
   result.whatsapp = { success: sendResult.success, error: sendResult.error };
   if (!sendResult.success) {
     console.error('[notificationService] Send failed:', triggerId, sendResult.error);

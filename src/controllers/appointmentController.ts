@@ -8,6 +8,8 @@ import mongoose from 'mongoose';
 import AppointmentStatus from '../models/AppointmentStatus';
 import Clinic from '../models/Clinic';
 import { sendNotification } from '../utils/notificationService';
+import { syncAppointmentToCalendar, deleteAppointmentFromCalendar } from '../utils/googleCalendarService';
+
 export class AppointmentController {
   static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -98,6 +100,11 @@ export class AppointmentController {
           }
         }).catch((err) => console.error('[notification] new_appointment:', err));
       }
+
+      // Sync to Google Calendar (fire-and-forget)
+      syncAppointmentToCalendar(String(clinic_id), appointment).catch((err) =>
+        console.error('[google-calendar] create sync:', err)
+      );
 
       res.status(201).json({
         success: true,
@@ -477,10 +484,19 @@ export class AppointmentController {
           clinic_name: clinic?.name || '',
         };
         const triggerId = (appointment.status || '').toLowerCase() === 'cancelled' ? 'cancel_appointment' : 'edit_appointment';
-        sendNotification(triggerId, clinicId, { recipientPhone: phone, payload, lang: 'ar' }).catch((err) =>
-          console.error('[notification]', triggerId, err)
-        );
+        sendNotification(triggerId, clinicId, { recipientPhone: phone, payload, lang: 'ar' })
+          .then((r) => {
+            if (r.whatsapp && !r.whatsapp.success) {
+              console.error('[notification]', triggerId, r.whatsapp.error);
+            }
+          })
+          .catch((err) => console.error('[notification]', triggerId, err));
       }
+
+      // Sync to Google Calendar (fire-and-forget)
+      syncAppointmentToCalendar(clinicId, appointment).catch((err) =>
+        console.error('[google-calendar] update sync:', err)
+      );
 
       res.json({
         success: true,
@@ -532,9 +548,10 @@ export class AppointmentController {
   static async cancelAppointment(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      
+      const clinic_id = req.clinic_id;
+
       let filter: any = { _id: id };
-      
+
       // Apply role-based filtering
       const roleFilter = getRoleBasedFilter(req.user, 'appointment');
       filter = { ...filter, ...roleFilter };
@@ -543,7 +560,9 @@ export class AppointmentController {
         filter,
         { status: 'cancelled' },
         { new: true }
-      );
+      )
+        .populate('patient_id')
+        .populate('doctor_id', '-password_hash');
 
       if (!appointment) {
         res.status(404).json({
@@ -551,6 +570,39 @@ export class AppointmentController {
           message: 'Appointment not found or access denied'
         });
         return;
+      }
+
+      // Send WhatsApp notification (cancel)
+      const clinicId = String(clinic_id);
+      const patient: any = appointment.patient_id;
+      const doctor: any = appointment.doctor_id;
+      const phone = patient?.phone;
+      if (phone && clinicId) {
+        const clinic = await Clinic.findById(clinic_id).select('name').lean();
+        const date = appointment.appointment_date instanceof Date ? appointment.appointment_date : new Date(appointment.appointment_date);
+        const payload = {
+          patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+          patient_phone: phone,
+          appointment_date: date.toLocaleDateString('ar-SA'),
+          appointment_time: date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+          doctor_name: doctor ? `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() : '',
+          clinic_name: clinic?.name || '',
+        };
+        sendNotification('cancel_appointment', clinicId, { recipientPhone: phone, payload, lang: 'ar' })
+          .then((r) => {
+            if (r.whatsapp && !r.whatsapp.success) {
+              console.error('[notification] cancel_appointment', r.whatsapp.error);
+            }
+          })
+          .catch((err) => console.error('[notification] cancel_appointment', err));
+      }
+
+      // Remove from Google Calendar (fire-and-forget)
+      const gcalEventId = (appointment as any).google_calendar_event_id;
+      if (gcalEventId) {
+        deleteAppointmentFromCalendar(clinicId, gcalEventId).catch((err) =>
+          console.error('[google-calendar] cancel delete:', err)
+        );
       }
 
       res.json({
