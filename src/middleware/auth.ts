@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import mongoose, { Types } from 'mongoose';
 import { User } from '../models';
 import { AuthRequest } from '../types/express';
 
@@ -238,7 +239,7 @@ export const getTenantScopedFilter = (req: AuthRequest, additionalFilter: any = 
 
   return {
     ...additionalFilter,
-    tenant_id: req.tenant_id
+    tenant_id: new Types.ObjectId(req.tenant_id)
   };
 };
 
@@ -292,6 +293,18 @@ export const validateTenantAccess = (getResourceTenantId: (req: AuthRequest) => 
 };
 
 /**
+ * Get tenant_id as ObjectId for database operations
+ * @param req AuthRequest containing tenant context
+ * @returns ObjectId or undefined
+ */
+export const getTenantIdAsObjectId = (req: AuthRequest): Types.ObjectId | undefined => {
+  if (!req.tenant_id) {
+    return undefined;
+  }
+  return new Types.ObjectId(req.tenant_id);
+};
+
+/**
  * Add tenant_id to data for creation operations
  * @param req AuthRequest containing tenant context
  * @param data Data object to enhance with tenant_id
@@ -309,7 +322,7 @@ export const addTenantToData = (req: AuthRequest, data: any) => {
 
   return {
     ...data,
-    tenant_id: req.tenant_id
+    tenant_id: new Types.ObjectId(req.tenant_id)
   };
 };
 

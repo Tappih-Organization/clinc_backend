@@ -40,8 +40,7 @@ const TestReportSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   reportNumber: {
     type: String,

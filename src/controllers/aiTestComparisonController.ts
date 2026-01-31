@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import { fromPath } from 'pdf2pic';
 import pdf from 'pdf-parse';
 import AITestComparison from '../models/AITestComparison';
@@ -78,7 +79,7 @@ export class AITestComparisonController {
       // Create initial comparison record
       const comparison = new AITestComparison({
         clinic_id: req.clinic_id,
-         tenant_id: req.tenant_id,
+        tenant_id: req.tenant_id ? new mongoose.Types.ObjectId(req.tenant_id) : undefined,
         patient_id,
         doctor_id: req.user?._id,
         comparison_name: comparison_name || `Test Comparison - ${new Date().toLocaleDateString()}`,

@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import XrayAnalysis from '../models/XrayAnalysis';
 import { AuthRequest } from '../types/express';
 
@@ -204,7 +205,7 @@ export class XrayAnalysisController {
       const xrayAnalysis = new XrayAnalysis({
         clinic_id: req.clinic_id, // Add clinic context to analysis data
         patient_id,
-        tenant_id: req.tenant_id,
+        tenant_id: req.tenant_id ? new mongoose.Types.ObjectId(req.tenant_id) : undefined,
         doctor_id: req.user?._id,
         image_url: `/uploads/xrays/${file.filename}`,
         image_filename: file.filename,

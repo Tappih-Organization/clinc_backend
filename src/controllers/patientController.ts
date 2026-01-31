@@ -51,7 +51,6 @@ export class PatientController {
       const patientData = addTenantToData(req, {
         ...req.body,
         clinic_id: req.clinic_id,
-        tenant_id: req.tenant_id,
         gender: req.body.gender || 'male' // Default to male if not provided
       });
       

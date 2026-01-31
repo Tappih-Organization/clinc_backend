@@ -42,6 +42,20 @@ export interface ISettings extends Document {
     paymentReminders: boolean;
     lowStockAlerts: boolean;
     systemAlerts: boolean;
+    /** Dynamic notification triggers (from Settings UI): id -> { enabled, channels, templates } */
+    triggers?: Record<string, {
+      id: string;
+      enabled: boolean;
+      channels: { whatsapp?: boolean; sms?: boolean; email?: boolean };
+      templates: {
+        whatsapp?: { ar: string; en: string };
+        sms?: { ar: string; en: string };
+        email?: { ar: string; en: string };
+      };
+      tags?: string[];
+    }>;
+    /** Wawp WhatsApp API credentials (per clinic or use env WAWP_*) */
+    wawp?: { instanceId: string; accessToken: string };
   };
   security: {
     twoFactorAuth: boolean;
@@ -212,6 +226,11 @@ const settingsSchema = new Schema<ISettings>({
     systemAlerts: {
       type: Boolean,
       default: true
+    },
+    triggers: { type: Schema.Types.Mixed, default: undefined },
+    wawp: {
+      instanceId: { type: String, trim: true },
+      accessToken: { type: String, trim: true }
     }
   },
   security: {

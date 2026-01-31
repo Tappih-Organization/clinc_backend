@@ -18,8 +18,7 @@ const WarehouseSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   name: {
     type: String,
@@ -31,15 +30,13 @@ const WarehouseSchema: Schema = new Schema({
   type: {
     type: String,
     enum: ['MAIN', 'SUB'],
-    required: [true, 'Warehouse type is required'],
-    index: true
+    required: [true, 'Warehouse type is required']
   },
   status: {
     type: String,
     enum: ['ACTIVE', 'INACTIVE'],
     default: 'ACTIVE',
-    required: [true, 'Status is required'],
-    index: true
+    required: [true, 'Status is required']
   },
   assignedBranches: [{
     type: Schema.Types.ObjectId,

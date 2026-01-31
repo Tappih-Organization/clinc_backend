@@ -1,8 +1,10 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { Invoice } from '../models';
+import Clinic from '../models/Clinic';
 import { AuthRequest } from '../types/express';
 import { getTenantScopedFilter, addTenantToData } from '../middleware/auth';
+import { sendNotification } from '../utils/notificationService';
 
 export class InvoiceController {
   static async createInvoice(req: AuthRequest, res: Response): Promise<void> {
@@ -27,6 +29,24 @@ export class InvoiceController {
       await invoice.save();
 
       await invoice.populate('patient_id', 'first_name last_name email phone');
+
+      const clinicId = String(req.clinic_id);
+      const patient: any = invoice.patient_id;
+      const phone = patient?.phone;
+      if (phone && clinicId) {
+        const clinic = await Clinic.findById(req.clinic_id).select('name').lean();
+        sendNotification('new_invoice', clinicId, {
+          recipientPhone: phone,
+          payload: {
+            patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+            patient_phone: phone,
+            invoice_amount: String(invoice.total_amount ?? ''),
+            invoice_id: invoice.invoice_number || '',
+            clinic_name: clinic?.name || '',
+          },
+          lang: 'ar',
+        }).catch((err) => console.error('[notification] new_invoice:', err));
+      }
 
       res.status(201).json({
         success: true,

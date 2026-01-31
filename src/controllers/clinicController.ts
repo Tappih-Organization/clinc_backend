@@ -213,13 +213,13 @@ export class ClinicController {
 
       // Check if tenant already has a main clinic (check all clinics, not just active ones)
       const existingMainClinic = await Clinic.findOne({
-        tenant_id: req.tenant_id,
+        tenant_id: new Types.ObjectId(req.tenant_id!),
         is_main_clinic: true
       });
 
       // Also check if tenant has ANY clinics at all (to determine if this is the first clinic)
       const tenantClinicsCount = await Clinic.countDocuments({
-        tenant_id: req.tenant_id
+        tenant_id: new Types.ObjectId(req.tenant_id!)
       });
 
       // Determine clinic type based on whether main clinic exists

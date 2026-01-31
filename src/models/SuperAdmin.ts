@@ -35,8 +35,7 @@ const SuperAdminSchema: Schema = new Schema({
     unique: true,
     lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email'],
-    index: true
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
   },
   password_hash: {
     type: String,
@@ -57,8 +56,7 @@ const SuperAdminSchema: Schema = new Schema({
   },
   is_active: {
     type: Boolean,
-    default: true,
-    index: true
+    default: true
   },
   last_login: {
     type: Date

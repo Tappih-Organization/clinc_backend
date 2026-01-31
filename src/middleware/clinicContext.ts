@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
 import { UserClinic, Clinic } from '../models';
 import { AuthRequest } from '../types/express';
 
@@ -174,6 +175,8 @@ export const optionalClinicContext = async (req: AuthRequest, res: Response, nex
           code: 'CLINIC_NOT_FOUND'
         });
       }
+
+      req.tenant_id = clinic.tenant_id.toString();
 
       const userClinic = await UserClinic.findOne({
         user_id: req.user._id,

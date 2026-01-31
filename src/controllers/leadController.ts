@@ -17,11 +17,10 @@ export class LeadController {
         return;
       }
 
-      const leadData = {
+      const leadData = addTenantToData(req, {
         ...req.body,
         clinic_id: req.clinic_id,
-        tenant_id: req.tenant_id, // Add tenant context to lead data
-      };
+      });
       
       const lead = new Lead(leadData);
       await lead.save();

@@ -35,8 +35,7 @@ const TenantSchema: Schema = new Schema({
     trim: true,
     lowercase: true,
     match: [/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'],
-    maxlength: [50, 'Slug cannot exceed 50 characters'],
-    index: true
+    maxlength: [50, 'Slug cannot exceed 50 characters']
   },
   email: {
     type: String,
@@ -58,8 +57,7 @@ const TenantSchema: Schema = new Schema({
     unique: true,
     sparse: true, // Allows multiple null values
     match: [/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'],
-    maxlength: [50, 'Subdomain cannot exceed 50 characters'],
-    index: true
+    maxlength: [50, 'Subdomain cannot exceed 50 characters']
   },
   logo_url: {
     type: String,
@@ -70,8 +68,7 @@ const TenantSchema: Schema = new Schema({
     type: String,
     enum: ['active', 'inactive', 'suspended', 'pending'],
     required: [true, 'Status is required'],
-    default: 'pending',
-    index: true
+    default: 'pending'
   },
   created_by: {
     type: Schema.Types.ObjectId,
@@ -79,8 +76,7 @@ const TenantSchema: Schema = new Schema({
     required: [true, 'Created by is required']
   },
   deleted_at: {
-    type: Date,
-    index: true
+    type: Date
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

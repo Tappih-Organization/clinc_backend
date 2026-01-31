@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import mongoose from 'mongoose';
 import { Prescription } from '../models';
+import Clinic from '../models/Clinic';
 import { AuthRequest } from '../types/express';
 import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData } from '../middleware/auth';
+import { sendNotification } from '../utils/notificationService';
 
 export class PrescriptionController {
   static async createPrescription(req: AuthRequest, res: Response): Promise<void> {
@@ -108,10 +110,28 @@ export class PrescriptionController {
 
       // Populate patient and doctor information
       await prescription.populate([
-        { path: 'patient_id', select: 'first_name last_name date_of_birth gender' },
+        { path: 'patient_id', select: 'first_name last_name date_of_birth gender phone' },
         { path: 'doctor_id', select: 'first_name last_name' },
         { path: 'appointment_id', select: 'appointment_date' }
       ]);
+
+      const clinicId = String(req.clinic_id);
+      const patient: any = prescription.patient_id;
+      const doctor: any = prescription.doctor_id;
+      const phone = patient?.phone;
+      if (phone && clinicId) {
+        const clinic = await Clinic.findById(req.clinic_id).select('name').lean();
+        sendNotification('new_prescription', clinicId, {
+          recipientPhone: phone,
+          payload: {
+            patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+            patient_phone: phone,
+            doctor_name: doctor ? `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() : '',
+            clinic_name: clinic?.name || '',
+          },
+          lang: 'ar',
+        }).catch((err) => console.error('[notification] new_prescription:', err));
+      }
 
       res.status(201).json({
         success: true,

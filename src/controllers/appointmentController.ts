@@ -6,6 +6,8 @@ import { getRoleBasedFilter, getTenantScopedFilter, addTenantToData } from '../m
 import Invoice from '../models/Invoice';
 import mongoose from 'mongoose';
 import AppointmentStatus from '../models/AppointmentStatus';
+import Clinic from '../models/Clinic';
+import { sendNotification } from '../utils/notificationService';
 export class AppointmentController {
   static async createAppointment(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -68,6 +70,34 @@ export class AppointmentController {
 
       // Populate patient, doctor, and nurse details
       await appointment.populate(['patient_id', 'doctor_id', 'nurse_id']);
+
+      // Send WhatsApp notification (fire-and-forget, non-blocking)
+      const clinicId = String(clinic_id);
+      const patient: any = appointment.patient_id;
+      const doctor: any = appointment.doctor_id;
+      const phone = patient?.phone;
+      if (!phone) {
+        console.warn('[notification] new_appointment skipped: patient has no phone number');
+      } else if (clinicId) {
+        const clinic = await Clinic.findById(clinic_id).select('name').lean();
+        const date = appointment.appointment_date instanceof Date ? appointment.appointment_date : new Date(appointment.appointment_date);
+        sendNotification('new_appointment', clinicId, {
+          recipientPhone: phone,
+          payload: {
+            patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+            patient_phone: phone,
+            appointment_date: date.toLocaleDateString('ar-SA'),
+            appointment_time: date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+            doctor_name: doctor ? `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() : '',
+            clinic_name: clinic?.name || '',
+          },
+          lang: 'ar',
+        }).then((r) => {
+          if (r.whatsapp && !r.whatsapp.success) {
+            console.error('[notification] new_appointment failed:', r.whatsapp.error);
+          }
+        }).catch((err) => console.error('[notification] new_appointment:', err));
+      }
 
       res.status(201).json({
         success: true,
@@ -428,6 +458,28 @@ export class AppointmentController {
           message: 'Appointment not found or access denied'
         });
         return;
+      }
+
+      // Send WhatsApp notification (edit or cancel)
+      const clinicId = String(clinic_id);
+      const patient: any = appointment.patient_id;
+      const doctor: any = appointment.doctor_id;
+      const phone = patient?.phone;
+      if (phone && clinicId) {
+        const clinic = await Clinic.findById(clinic_id).select('name').lean();
+        const date = appointment.appointment_date instanceof Date ? appointment.appointment_date : new Date(appointment.appointment_date);
+        const payload = {
+          patient_name: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+          patient_phone: phone,
+          appointment_date: date.toLocaleDateString('ar-SA'),
+          appointment_time: date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+          doctor_name: doctor ? `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() : '',
+          clinic_name: clinic?.name || '',
+        };
+        const triggerId = (appointment.status || '').toLowerCase() === 'cancelled' ? 'cancel_appointment' : 'edit_appointment';
+        sendNotification(triggerId, clinicId, { recipientPhone: phone, payload, lang: 'ar' }).catch((err) =>
+          console.error('[notification]', triggerId, err)
+        );
       }
 
       res.json({

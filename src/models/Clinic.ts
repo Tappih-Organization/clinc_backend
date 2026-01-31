@@ -73,8 +73,7 @@ const ClinicSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   name: {
     type: String,
@@ -99,14 +98,12 @@ const ClinicSchema: Schema = new Schema({
   },
   is_main_clinic: {
     type: Boolean,
-    default: false,
-    index: true
+    default: false
   },
   parent_clinic_id: {
     type: Schema.Types.ObjectId,
     ref: 'Clinic',
     default: null,
-    index: true,
     validate: {
       validator: function(this: IClinic, value: Types.ObjectId | null) {
         // Main clinic must have parent_clinic_id = null

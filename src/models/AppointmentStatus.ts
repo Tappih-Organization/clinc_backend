@@ -21,21 +21,18 @@ const AppointmentStatusSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   clinic_id: {
     type: Schema.Types.ObjectId,
     ref: 'Clinic',
-    required: [true, 'Clinic ID is required'],
-    index: true
+    required: [true, 'Clinic ID is required']
   },
   code: {
     type: String,
     required: [true, 'Status code is required'],
     trim: true,
-    lowercase: true,
-    index: true
+    lowercase: true
   },
   name_en: {
     type: String,

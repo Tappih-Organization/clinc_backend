@@ -33,8 +33,7 @@ const PaymentSchema: Schema = new Schema({
   tenant_id: {
     type: Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: [true, 'Tenant ID is required'],
-    index: true
+    required: [true, 'Tenant ID is required']
   },
   clinic_id: {
     type: Schema.Types.ObjectId,
@@ -133,14 +132,12 @@ const PaymentSchema: Schema = new Schema({
   stripe_payment_intent_id: {
     type: String,
     trim: true,
-    sparse: true, // Allow multiple null/undefined values
-    index: true
+    sparse: true // Allow multiple null/undefined values
   },
   stripe_checkout_session_id: {
     type: String,
     trim: true,
-    sparse: true, // Allow multiple null/undefined values
-    index: true
+    sparse: true // Allow multiple null/undefined values
   },
   stripe_customer_id: {
     type: String,

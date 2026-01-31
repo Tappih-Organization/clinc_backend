@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
+import mongoose from 'mongoose';
 import { TestReport, Patient, Test } from '../models';
 import { AuthRequest } from '../types/express';
 import multer from 'multer';
@@ -82,7 +83,7 @@ export class TestReportController {
       const reportData = {
         ...req.body,
         clinic_id: req.clinic_id,
-        tenant_id: req.tenant_id,
+        tenant_id: req.tenant_id ? new mongoose.Types.ObjectId(req.tenant_id) : undefined,
         patientName: `${patient.first_name} ${patient.last_name}`,
         patientAge: patient.age,
         patientGender: patient.gender,

@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import { fromPath } from 'pdf2pic';
 import pdf from 'pdf-parse';
 import AITestAnalysis from '../models/AITestAnalysis';
@@ -380,7 +381,7 @@ IMPORTANT GUIDELINES:
       const aiTestAnalysis = new AITestAnalysis({
         clinic_id: req.clinic_id,
         patient_id,
-         tenant_id: req.tenant_id,
+        tenant_id: req.tenant_id ? new mongoose.Types.ObjectId(req.tenant_id) : undefined,
         doctor_id: req.user?._id,
         file_url: `/uploads/ai-test-reports/${file.filename}`,
         file_name: file.filename,

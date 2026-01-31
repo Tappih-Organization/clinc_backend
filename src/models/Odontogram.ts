@@ -268,14 +268,12 @@ const OdontogramSchema: Schema = new Schema({
   clinic_id: {
     type: Schema.Types.ObjectId,
     ref: 'Clinic',
-    required: [true, 'Clinic ID is required'],
-    index: true
+    required: [true, 'Clinic ID is required']
   },
   patient_id: {
     type: Schema.Types.ObjectId,
     ref: 'Patient',
-    required: [true, 'Patient ID is required'],
-    index: true
+    required: [true, 'Patient ID is required']
   },
   doctor_id: {
     type: Schema.Types.ObjectId,
@@ -358,8 +356,7 @@ const OdontogramSchema: Schema = new Schema({
   },
   is_active: {
     type: Boolean,
-    default: true,
-    index: true
+    default: true
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
